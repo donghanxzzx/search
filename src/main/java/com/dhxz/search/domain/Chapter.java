@@ -1,10 +1,12 @@
 package com.dhxz.search.domain;
 
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
+import javax.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import javax.persistence.*;
 
 @Data
 @Entity
@@ -23,4 +25,5 @@ public class Chapter {
     private Long contentId;
 
     private Integer chapterOrder;
+    private Boolean completed;
 }

@@ -7,6 +7,13 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.vo.BookInfoVo;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -16,15 +23,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
-
-import javax.transaction.Transactional;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author 10066610
@@ -95,6 +93,8 @@ public class SearchService {
             e.printStackTrace();
         }
 
+        log.info("初始化bookInfo完成");
+
 
     }
 
@@ -110,28 +110,25 @@ public class SearchService {
             bookInfo.setTitle(bookInfoElement.text());
             bookInfo.setBookOrder(vo.getBookOrder());
             bookInfo.setInfoUrl(base + bookInfoElement.attr("href"));
+            bookInfo.setCompleted(true);
             bookInfos.add(bookInfo);
         }
 
         bookInfoRepository.saveAll(bookInfos);
     }
 
-
-    public void submitReadBook(List<BookInfo> bookInfos) {
-        bookInfos.forEach(this::bookInfo);
+    @Transactional(rollbackOn = Exception.class)
+    public void readChapter(BookInfo bookInfo) {
+        chapterRepository.saveAll(chapter(bookInfo.getInfoUrl(), new ArrayList<>(), bookInfo));
     }
 
     @Transactional(rollbackOn = Exception.class)
-    public void bookInfo(final BookInfo bookInfo) {
-        Document document = get(bookInfo.getInfoUrl());
-        Elements title = document.select("title");
-        if (!CollectionUtils.isEmpty(title) && title.size() == 1) {
-            bookInfo.setTitle(title.get(0).text());
-        }
-        bookInfoRepository.saveAndFlush(bookInfo);
-        List<Chapter> chapterList = chapter(bookInfo.getInfoUrl(), new ArrayList<>(), bookInfo);
-        final CountDownLatch latch = new CountDownLatch(chapterList.size());
-        for (Chapter chapter : chapterList) {
+    public void readContent(BookInfo bookInfo) {
+        List<Chapter> chapters = chapterRepository
+                .findByBookInfoIdAndCompletedIsFalseOrderByChapterOrder(bookInfo.getId());
+
+        final CountDownLatch latch = new CountDownLatch(chapters.size());
+        for (Chapter chapter : chapters) {
             executorService.execute(() -> {
                 try {
                     loadContext(chapter);
@@ -140,12 +137,12 @@ public class SearchService {
                 }
             });
         }
-
         try {
             latch.await();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+        chapterRepository.saveAll(chapters);
     }
 
     public void loadContext(Chapter chapter) {
@@ -169,9 +166,10 @@ public class SearchService {
         } while (nextPageUri.startsWith(pattern));
         Content content = new Content();
         content.setContent(sb.toString());
+        content.setCompleted(true);
         contentRepository.saveAndFlush(content);
         chapter.setContentId(content.getId());
-        chapterRepository.saveAndFlush(chapter);
+        chapter.setCompleted(true);
     }
 
 

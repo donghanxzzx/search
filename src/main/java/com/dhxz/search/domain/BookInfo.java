@@ -1,12 +1,12 @@
 package com.dhxz.search.domain;
 
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
+import javax.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import javax.persistence.*;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @Entity
@@ -21,4 +21,5 @@ public class BookInfo {
     private String title;
     private String infoUrl;
     private Integer bookOrder;
+    private Boolean completed;
 }

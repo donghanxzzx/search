@@ -7,34 +7,24 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.service.SearchService;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.nodes.Node;
-import org.jsoup.select.Elements;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.FileCopyUtils;
-import org.springframework.util.StringUtils;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-
-import static java.util.stream.Collectors.toList;
 
 @Slf4j
 @RunWith(SpringRunner.class)
@@ -68,9 +58,10 @@ public class SearchApplicationTests {
         for (int i = 1; i <= 10; i++) {
             orders.add(i);
         }
-        List<BookInfo> infoList = bookInfoRepository.findAllByBookOrderIn(Collections.singletonList(1));
+        List<BookInfo> infoList = bookInfoRepository
+                .findAllByBookOrderInAndCompletedFalse(Collections.singletonList(1));
         System.out.println(infoList.size());
-        searchService.submitReadBook(infoList);
+
     }
 
 
@@ -80,7 +71,8 @@ public class SearchApplicationTests {
         List<BookInfo> all = bookInfoRepository.findAll();
         System.out.println(all.size());
         BookInfo bookInfo = all.get(0);
-        List<Chapter> chapters = chapterRepository.findByBookInfoIdOrderByChapterOrder(bookInfo.getId());
+        List<Chapter> chapters = chapterRepository
+                .findByBookInfoIdAndCompletedIsFalseOrderByChapterOrder(bookInfo.getId());
         FileOutputStream fos = new FileOutputStream(new File(bookInfo.getTitle() + ".txt"));
         chapters.forEach(item -> {
             Optional<Content> optional = contentRepository.findById(item.getContentId());
