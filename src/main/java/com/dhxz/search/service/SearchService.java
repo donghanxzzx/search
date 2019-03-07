@@ -167,17 +167,15 @@ public class SearchService {
                     for (Element a : element.select("a")) {
                         if (a.text().contains("查看目录")) {
                             // 目录url
-                            Document bookIndex = get(base + a.attr("href"));
-                            if (Objects.nonNull(bookIndex)) {
-                                handleCurrentPage(bookIndex, bookInfo, count, chapterList);
-                                String nextUrl = next(document.select(".page"));
-
-                                while (!StringUtils.isEmpty(nextUrl)) {
-                                    handleCurrentPage(get(nextUrl), bookInfo, count, chapterList);
-                                    nextUrl = next(document.select(".page"));
+                            String currentUrl = base + a.attr("href");
+                            do {
+                                Document currentPage = get(currentUrl);
+                                // 如果请求到了数据
+                                if (Objects.nonNull(currentPage)) {
+                                    handleCurrentPage(currentPage, bookInfo, count, chapterList);
+                                    currentUrl = next(currentPage.select(".page"));
                                 }
-
-                            }
+                            } while (!StringUtils.isEmpty(currentUrl));
                         }
                     }
                 }
@@ -258,21 +256,8 @@ public class SearchService {
             } else {
                 return null;
             }
-        } else if (!CollectionUtils.isEmpty(page) && page.get(0).text().contains("下一章")) {
-            Elements aList = page.get(0).select("a");
-            String nextUrl = "";
-            for (Element element : aList) {
-                if (element.text().contains("下一章")) {
-                    nextUrl = base + element.attr("href");
-                }
-            }
-            System.out.println(nextUrl);
-            if (!StringUtils.isEmpty(nextUrl)) {
-                return nextUrl;
-            } else {
-                return null;
-            }
+        } else {
+            return null;
         }
-        return null;
     }
 }
