@@ -72,7 +72,7 @@ public class SearchApplicationTests {
         System.out.println(all.size());
         BookInfo bookInfo = all.get(0);
         List<Chapter> chapters = chapterRepository
-                .findByBookInfoIdAndOrderByChapterOrder(bookInfo.getId());
+                .findByBookInfoId(bookInfo.getId());
         FileOutputStream fos = new FileOutputStream(new File(bookInfo.getTitle() + ".txt"));
         chapters.forEach(item -> {
             Optional<Content> optional = contentRepository.findById(item.getContentId());
@@ -102,6 +102,18 @@ public class SearchApplicationTests {
             log.error("请求错误:{}", e);
         }
         return document;
+    }
+
+    @Test
+    public void chapterTests() throws InterruptedException {
+        searchService.readChapter(bookInfoRepository.findById(3L).orElseThrow(RuntimeException::new));
+        Thread.currentThread().join();
+    }
+
+    @Test
+    public void readContentTests() throws InterruptedException {
+        searchService.readContent(bookInfoRepository.findById(3L).orElseThrow(RuntimeException::new));
+        Thread.currentThread().join();
     }
 
 }

@@ -22,10 +22,12 @@ import org.springframework.util.StringUtils;
 import javax.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * @author 10066610
@@ -70,7 +72,6 @@ public class SearchService {
     }
 
     public void initAllVisitBookInfo() {
-        final CountDownLatch latch = new CountDownLatch(allVisitMaxPage);
         List<BookInfoVo> infoVos = new ArrayList<>();
         for (int i = 1; i <= allVisitMaxPage; i++) {
             String url = topAllVisit + "-" + i + "/";
@@ -81,29 +82,14 @@ public class SearchService {
         }
         infoVos.forEach(item -> {
             executorService.execute(() -> {
-                try {
-                    allVisitBookInfo(item);
-                } finally {
-                    latch.countDown();
-                    log.info("还剩余:{}", latch.getCount());
-                }
+                allVisitBookInfo(item);
             });
         });
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        log.info("初始化bookInfo完成");
-
-
     }
 
     @Transactional(rollbackOn = Exception.class)
     public void allVisitBookInfo(final BookInfoVo vo) {
-
+        log.info("BookInfo:{}", vo);
         Document topAllVisit = get(vo.getInfoUrl());
 
         Elements bookInfoElements = topAllVisit.select(".cover").get(0).select(".blue");
@@ -120,31 +106,28 @@ public class SearchService {
         bookInfoRepository.saveAll(bookInfos);
     }
 
-    @Transactional(rollbackOn = Exception.class)
     public void readChapter(BookInfo bookInfo) {
-        chapterRepository.saveAll(chapter(bookInfo.getInfoUrl(), new ArrayList<>(), bookInfo));
+        executorService.execute(() -> {
+            chapterRepository.saveAll(chapter(bookInfo.getInfoUrl(), new ArrayList<>(), bookInfo));
+        });
     }
 
     public void readContent(BookInfo bookInfo) {
-        List<Chapter> chapters = chapterRepository
-                .findByBookInfoIdAndCompletedIsTrueOrderByChapterOrder(bookInfo.getId());
+        executorService.execute(() -> {
+            log.info("bookInfo:{}", bookInfo);
+            List<Chapter> chapters = chapterRepository
+                    .findByBookInfoId(bookInfo.getId())
+                    .stream()
+                    .filter(hasNotCompleted())
+                    .collect(Collectors.toList());
+            chapters.forEach(this::loadContext);
+            chapterRepository.saveAll(chapters);
+        });
 
-        final CountDownLatch latch = new CountDownLatch(chapters.size());
-        for (Chapter chapter : chapters) {
-            executorService.execute(() -> {
-                try {
-                    loadContext(chapter);
-                } finally {
-                    latch.countDown();
-                }
-            });
-        }
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        chapterRepository.saveAll(chapters);
+    }
+
+    private Predicate<Chapter> hasNotCompleted() {
+        return item -> Objects.isNull(item.getCompleted()) || !item.getCompleted();
     }
 
     public void loadContext(Chapter chapter) {
@@ -176,15 +159,42 @@ public class SearchService {
 
     private List<Chapter> chapter(String url, List<Chapter> chapterList, BookInfo bookInfo) {
         final AtomicInteger count = new AtomicInteger(0);
-
+        log.info("bookInfo:{}", bookInfo);
         Document document = get(url);
-        Elements chapters = document.select(".chapter");
+        if (Objects.nonNull(document)) {
+            for (Element element : document.select(".ablum_read")) {
+                if (element.text().contains("查看目录")) {
+                    for (Element a : element.select("a")) {
+                        if (a.text().contains("查看目录")) {
+                            // 目录url
+                            Document bookIndex = get(base + a.attr("href"));
+                            if (Objects.nonNull(bookIndex)) {
+                                handleCurrentPage(bookIndex, bookInfo, count, chapterList);
+                                String nextUrl = next(document.select(".page"));
+
+                                while (!StringUtils.isEmpty(nextUrl)) {
+                                    handleCurrentPage(get(nextUrl), bookInfo, count, chapterList);
+                                    nextUrl = next(document.select(".page"));
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return chapterList;
+    }
+
+    private void handleCurrentPage(Document bookIndex, BookInfo bookInfo, AtomicInteger count, List<Chapter> chapterList) {
+        Elements chapters = bookIndex.select(".chapter");
         if (!CollectionUtils.isEmpty(chapters)) {
             for (Element chapterEle : chapters) {
                 Elements aList = chapterEle.select("a");
                 if (!CollectionUtils.isEmpty(aList)) {
                     for (Element a : aList) {
                         String uri = a.attr("href");
+                        log.info("chapterUri:{}", uri);
                         if (!chapterRepository.existsByUri(uri)) {
                             Chapter chapter = new Chapter();
                             chapter.setChapterName(a.text());
@@ -197,12 +207,6 @@ public class SearchService {
                 }
             }
         }
-
-        String nextUrl = next(document.select(".page"));
-        if (!StringUtils.isEmpty(nextUrl)) {
-            chapter(nextUrl, chapterList, bookInfo);
-        }
-        return chapterList;
     }
 
     private void content(StringBuilder context, Document page) {
@@ -226,7 +230,7 @@ public class SearchService {
                     .header(HttpHeaders.ACCEPT_LANGUAGE, "zh,zh-CN;q=0.9,en;q=0.8,zh-TW;q=0.7")
                     .get();
         } catch (Exception e) {
-            log.error("请求错误:{}", e);
+            log.error("请求错误:", e);
         }
         return document;
     }
