@@ -7,15 +7,6 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.service.SearchService;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -25,6 +16,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.junit4.SpringRunner;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @RunWith(SpringRunner.class)
@@ -53,17 +54,16 @@ public class SearchApplicationTests {
     }
 
     @Test
-    public void readBook(){
+    public void readBook() {
         List<Integer> orders = new ArrayList<>();
         for (int i = 1; i <= 10; i++) {
             orders.add(i);
         }
         List<BookInfo> infoList = bookInfoRepository
-                .findAllByBookOrderInAndCompletedFalse(Collections.singletonList(1));
+                .findAllByBookOrderIn(Collections.singletonList(1));
         System.out.println(infoList.size());
 
     }
-
 
 
     @Test
@@ -72,7 +72,7 @@ public class SearchApplicationTests {
         System.out.println(all.size());
         BookInfo bookInfo = all.get(0);
         List<Chapter> chapters = chapterRepository
-                .findByBookInfoIdAndCompletedIsFalseOrderByChapterOrder(bookInfo.getId());
+                .findByBookInfoIdAndOrderByChapterOrder(bookInfo.getId());
         FileOutputStream fos = new FileOutputStream(new File(bookInfo.getTitle() + ".txt"));
         chapters.forEach(item -> {
             Optional<Content> optional = contentRepository.findById(item.getContentId());
@@ -89,7 +89,6 @@ public class SearchApplicationTests {
         });
 
     }
-
 
 
     private Document get(String url) {

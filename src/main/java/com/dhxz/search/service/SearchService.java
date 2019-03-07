@@ -7,22 +7,25 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.vo.BookInfoVo;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import javax.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.http.HttpHeaders;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+
+import javax.transaction.Transactional;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author 10066610
@@ -42,7 +45,7 @@ public class SearchService {
     private final String top = base + "/top.html";
     private final String topAllVisit = base + "/top-allvisit";
     private final Integer allVisitMaxPage = 741;
-    private final ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2);
+    private final ExecutorService executorService = Executors.newFixedThreadPool(16);
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository, BookInfoRepository bookInfoRepository) {
         this.contentRepository = contentRepository;
@@ -122,10 +125,9 @@ public class SearchService {
         chapterRepository.saveAll(chapter(bookInfo.getInfoUrl(), new ArrayList<>(), bookInfo));
     }
 
-    @Transactional(rollbackOn = Exception.class)
     public void readContent(BookInfo bookInfo) {
         List<Chapter> chapters = chapterRepository
-                .findByBookInfoIdAndCompletedIsFalseOrderByChapterOrder(bookInfo.getId());
+                .findByBookInfoIdAndCompletedIsTrueOrderByChapterOrder(bookInfo.getId());
 
         final CountDownLatch latch = new CountDownLatch(chapters.size());
         for (Chapter chapter : chapters) {
@@ -147,7 +149,7 @@ public class SearchService {
 
     public void loadContext(Chapter chapter) {
         String uri = chapter.getUri();
-        log.info("chapterUri:{}",uri);
+        log.info("chapterUri:{}", uri);
         Document beginRead = get(base + uri);
         StringBuilder sb = new StringBuilder();
         content(sb, beginRead);
@@ -163,19 +165,18 @@ public class SearchService {
             Document nextPage = get(base + nextPageUri);
             content(sb, nextPage);
             nextPageUri = getNextUri(nextPage);
-        } while (nextPageUri.startsWith(pattern));
+        } while (!StringUtils.isEmpty(nextPageUri) && nextPageUri.startsWith(pattern));
         Content content = new Content();
         content.setContent(sb.toString());
-        content.setCompleted(true);
         contentRepository.saveAndFlush(content);
         chapter.setContentId(content.getId());
         chapter.setCompleted(true);
     }
 
 
-
     private List<Chapter> chapter(String url, List<Chapter> chapterList, BookInfo bookInfo) {
         final AtomicInteger count = new AtomicInteger(0);
+
         Document document = get(url);
         Elements chapters = document.select(".chapter");
         if (!CollectionUtils.isEmpty(chapters)) {
@@ -183,13 +184,15 @@ public class SearchService {
                 Elements aList = chapterEle.select("a");
                 if (!CollectionUtils.isEmpty(aList)) {
                     for (Element a : aList) {
-                        Chapter chapter = new Chapter();
-                        chapter.setChapterName(a.text());
                         String uri = a.attr("href");
-                        chapter.setUri(uri);
-                        chapter.setBookInfoId(bookInfo.getId());
-                        chapter.setChapterOrder(count.addAndGet(1));
-                        chapterList.add(chapter);
+                        if (!chapterRepository.existsByUri(uri)) {
+                            Chapter chapter = new Chapter();
+                            chapter.setChapterName(a.text());
+                            chapter.setUri(uri);
+                            chapter.setBookInfoId(bookInfo.getId());
+                            chapter.setChapterOrder(count.addAndGet(1));
+                            chapterList.add(chapter);
+                        }
                     }
                 }
             }
@@ -214,6 +217,7 @@ public class SearchService {
         }
     }
 
+    @Retryable(value = {Exception.class}, backoff = @Backoff(value = 1000L, maxDelay = 500L))
     private Document get(String url) {
         Document document = null;
         try {
@@ -228,8 +232,12 @@ public class SearchService {
     }
 
     private String getNextUri(Document currentPage) {
-        return currentPage.select(".nr_page")
-                .select("#pb_next").get(0).attr("href");
+        Elements elements = currentPage.select(".nr_page");
+        if (!CollectionUtils.isEmpty(elements)) {
+            return elements.select("#pb_next").get(0).attr("href");
+        } else {
+            return null;
+        }
     }
 
     private String next(Elements page) {
