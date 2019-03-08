@@ -54,7 +54,7 @@ public class SearchService {
     private final String topAllVisit = base + "/top-allvisit";
     private final Integer allVisitMaxPage = 741;
 
-    private ExecutorService commonTaskExecutor = Executors.newFixedThreadPool(16,
+    private ExecutorService commonTaskExecutor = Executors.newFixedThreadPool(64,
             new ThreadFactory() {
                 private AtomicInteger counter = new AtomicInteger(0);
 
@@ -166,7 +166,6 @@ public class SearchService {
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
-                    ;
                     chapterRepository.saveAll(chapters);
         });
     }
