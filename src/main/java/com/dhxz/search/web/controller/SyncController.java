@@ -1,4 +1,4 @@
-package com.dhxz.search.controller;
+package com.dhxz.search.web.controller;
 
 import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
 import static com.dhxz.search.predicate.Predicates.hasNotCompletedBookInfo;
