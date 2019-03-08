@@ -1,20 +1,11 @@
 package com.dhxz.search;
 
-import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
-
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
 import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.service.SearchService;
-import com.dhxz.search.vo.BookInfoVo;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -24,6 +15,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.junit4.SpringRunner;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Slf4j
 @RunWith(SpringRunner.class)
@@ -90,9 +88,9 @@ public class SearchApplicationTests {
 
     @Test
     public void testChapter() throws InterruptedException {
-        searchService.readChapter(BookInfoVo.toVo(
-                bookInfoRepository.findById(3L).orElseThrow(BOOK_NOT_FOUND)));
-        Thread.currentThread().join();
+        List<BookInfo> orderAsc = bookInfoRepository.findAllByOrderByBookOrderAsc();
+
+        System.out.println(orderAsc.size());
     }
 
 }

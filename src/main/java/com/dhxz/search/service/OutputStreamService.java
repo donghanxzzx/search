@@ -2,7 +2,6 @@ package com.dhxz.search.service;
 
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
-import com.dhxz.search.domain.Content;
 import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
@@ -17,10 +16,10 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.List;
-import java.util.Optional;
 
 import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
 import static com.dhxz.search.exception.ExceptionEnum.CHAPTER_NOT_COMPLETED;
+import static java.util.stream.Collectors.toList;
 
 /**
  * @author 10066610
@@ -60,18 +59,15 @@ public class OutputStreamService {
                 .findByBookInfoIdOrderByChapterOrderAsc(book.getId());
         StringBuilder sb = new StringBuilder();
         sb.append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">");
-        chapters.forEach(item -> {
-            Optional<Content> optional = contentRepository.findById(item.getContent().getId());
-            if (optional.isPresent()) {
-                String content = optional.get().getContent();
-                String[] sub = content.split("。");
-                sb.append("\t");
-                for (String s : sub) {
-                    sb.append("\r\n").append(s).append("。");
-                }
-                sb.append("\t");
-            }
-        });
+        List<Long> contentIds = chapters.stream().map(item -> item.getContent().getId()).collect(toList());
+        long count = contentRepository.findAllById(contentIds)
+                .stream()
+                .map(item -> sb.append("<p>")
+                        .append("\t")
+                        .append(item.getContent().replaceAll("。", "。\r\n<br>"))
+                        .append("\r\n")
+                        .append("</p>"))
+                .count();
         try {
             String title = book.getTitle() + ".txt";
             byte[] bytes = sb.toString().getBytes();
