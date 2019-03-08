@@ -1,9 +1,5 @@
 package com.dhxz.search.service;
 
-import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
-import static com.dhxz.search.predicate.Predicates.hasNotCompletedChapter;
-import static java.util.stream.Collectors.toList;
-
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
 import com.dhxz.search.domain.Content;
@@ -13,17 +9,6 @@ import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.vo.BookInfoVo;
 import com.dhxz.search.web.utils.ClientUtil;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import javax.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -31,6 +16,18 @@ import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+
+import javax.transaction.Transactional;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
+import static com.dhxz.search.predicate.Predicates.hasNotCompletedChapter;
+import static java.util.stream.Collectors.toList;
 
 /**
  * @author 10066610
@@ -80,7 +77,7 @@ public class SearchService {
             });
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
-            BookInfoRepository bookInfoRepository, ClientUtil clientUtil) {
+                         BookInfoRepository bookInfoRepository, ClientUtil clientUtil) {
         this.contentRepository = contentRepository;
         this.chapterRepository = chapterRepository;
         this.bookInfoRepository = bookInfoRepository;
@@ -139,7 +136,7 @@ public class SearchService {
     }
 
     public void readContent(BookInfoVo vo) {
-        commonTaskExecutor.execute(
+        contentTaskExecutor.execute(
                 () -> {
                     log.info("bookInfo:{}", vo);
                     List<Chapter> chapters =
@@ -166,7 +163,7 @@ public class SearchService {
                         e.printStackTrace();
                     }
                     chapterRepository.saveAll(chapters);
-        });
+                });
     }
 
     public void loadContext(Chapter chapter) {
