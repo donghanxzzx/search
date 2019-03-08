@@ -1,12 +1,18 @@
 package com.dhxz.search.domain;
 
+import javax.persistence.CascadeType;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
+import javax.persistence.OneToOne;
 import javax.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
 
 @Data
 @Entity
@@ -14,16 +20,18 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Chapter {
+
     @Id
     @GeneratedValue
     private Long id;
     private String chapterName;
     private String uri;
-
-    private Long bookInfoId;
-
-    private Long contentId;
-
+    @ManyToOne(cascade = {CascadeType.MERGE, CascadeType.REFRESH})
+    @JoinColumn(name = "book_info_id", referencedColumnName = "id")
+    private BookInfo bookInfo;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "content_id", referencedColumnName = "id")
+    private Content content;
     private Integer chapterOrder;
     private Boolean completed;
 }

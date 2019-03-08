@@ -1,13 +1,15 @@
 package com.dhxz.search.controller;
 
+import static com.dhxz.search.predicate.Predicates.hasNotCompletedBookInfo;
+import static java.util.stream.Collectors.toList;
+
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.service.SearchService;
+import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 public class SyncController {
@@ -34,13 +36,17 @@ public class SyncController {
 
     @GetMapping("/readContent")
     public ResponseEntity<String> readContent() {
-        page().forEach(searchService::readContent);
+        pageAll().forEach(searchService::readContent);
         return ResponseEntity.ok(SUCCESS);
     }
 
     private List<BookInfo> page() {
-        return bookInfoRepository.findAll();
+        return bookInfoRepository.findAll().stream()
+                .filter(hasNotCompletedBookInfo())
+                .collect(toList());
     }
 
-
+    private List<BookInfo> pageAll() {
+        return bookInfoRepository.findAll();
+    }
 }

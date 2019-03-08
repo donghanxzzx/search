@@ -1,5 +1,7 @@
 package com.dhxz.search.service;
 
+import static com.dhxz.search.predicate.Predicates.hasNotCompletedChapter;
+
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
 import com.dhxz.search.domain.Content;
@@ -7,6 +9,16 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.vo.BookInfoVo;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import javax.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -18,16 +30,6 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
-
-import javax.transaction.Transactional;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * @author 10066610
@@ -46,8 +48,10 @@ public class SearchService {
     private final String full = base + "/full/";
     private final String top = base + "/top.html";
     private final String topAllVisit = base + "/top-allvisit";
-    private final Integer allVisitMaxPage = 741;
+    private final Integer allVisitMaxPage = 1;
     private final ExecutorService executorService = Executors.newFixedThreadPool(16);
+
+    private final ExecutorService contentExecutorService = Executors.newFixedThreadPool(16);
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository, BookInfoRepository bookInfoRepository) {
         this.contentRepository = contentRepository;
@@ -91,43 +95,63 @@ public class SearchService {
     public void allVisitBookInfo(final BookInfoVo vo) {
         log.info("BookInfo:{}", vo);
         Document topAllVisit = get(vo.getInfoUrl());
-
-        Elements bookInfoElements = topAllVisit.select(".cover").get(0).select(".blue");
-        List<BookInfo> bookInfos = new ArrayList<>();
-        for (Element bookInfoElement : bookInfoElements) {
-            BookInfo bookInfo = new BookInfo();
-            bookInfo.setTitle(bookInfoElement.text());
-            bookInfo.setBookOrder(vo.getBookOrder());
-            bookInfo.setInfoUrl(base + bookInfoElement.attr("href"));
-            bookInfo.setCompleted(true);
-            bookInfos.add(bookInfo);
+        if (Objects.nonNull(topAllVisit)) {
+            Elements bookInfoElements = topAllVisit.select(".cover").get(0).select(".blue");
+            List<BookInfo> bookInfos = new ArrayList<>();
+            for (Element bookInfoElement : bookInfoElements) {
+                BookInfo bookInfo = new BookInfo();
+                bookInfo.setTitle(bookInfoElement.text());
+                bookInfo.setBookOrder(vo.getBookOrder());
+                bookInfo.setInfoUrl(base + bookInfoElement.attr("href"));
+                bookInfo.setCompleted(false);
+                if (!bookInfoRepository.existsByInfoUrl(bookInfo.getInfoUrl())) {
+                    bookInfos.add(bookInfo);
+                }
+            }
+            bookInfoRepository.saveAll(bookInfos);
         }
-
-        bookInfoRepository.saveAll(bookInfos);
     }
 
     public void readChapter(BookInfo bookInfo) {
         executorService.execute(() -> {
-            chapterRepository.saveAll(chapter(bookInfo.getInfoUrl(), new ArrayList<>(), bookInfo));
+            BookInfo infoInDb = bookInfoRepository.findById(bookInfo.getId())
+                    .orElseThrow(RuntimeException::new);
+            chapterRepository.saveAll(chapter(infoInDb.getInfoUrl(), new ArrayList<>(), infoInDb));
+
+            infoInDb.setCompleted(true);
+            bookInfoRepository.saveAndFlush(infoInDb);
         });
     }
 
     public void readContent(BookInfo bookInfo) {
-        executorService.execute(() -> {
-            log.info("bookInfo:{}", bookInfo);
-            List<Chapter> chapters = chapterRepository
-                    .findByBookInfoId(bookInfo.getId())
-                    .stream()
-                    .filter(hasNotCompleted())
-                    .collect(Collectors.toList());
-            chapters.forEach(this::loadContext);
-            chapterRepository.saveAll(chapters);
+        executorService.execute(
+                () -> {
+                    log.info("bookInfo:{}", bookInfo);
+                    List<Chapter> chapters =
+                            chapterRepository.findByBookInfoId(bookInfo.getId()).stream()
+                                    .filter(hasNotCompletedChapter())
+                                    .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
+                    final CountDownLatch chapterLatch = new CountDownLatch(chapters.size());
+                    for (Chapter chapter : chapters) {
+                        contentExecutorService.execute(() -> {
+                            try {
+                                loadContext(chapter);
+                            } catch (Exception e) {
+                                chapter.setCompleted(false);
+                                log.error("获取内容失败:{}", chapter);
+                            } finally {
+                                chapterLatch.countDown();
+                            }
+                        });
+                    }
+                    try {
+                        chapterLatch.await();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    ;
+                    chapterRepository.saveAll(chapters);
         });
-
-    }
-
-    private Predicate<Chapter> hasNotCompleted() {
-        return item -> Objects.isNull(item.getCompleted()) || !item.getCompleted();
     }
 
     public void loadContext(Chapter chapter) {
@@ -152,7 +176,7 @@ public class SearchService {
         Content content = new Content();
         content.setContent(sb.toString());
         contentRepository.saveAndFlush(content);
-        chapter.setContentId(content.getId());
+        chapter.setContent(content);
         chapter.setCompleted(true);
     }
 
@@ -197,8 +221,9 @@ public class SearchService {
                             Chapter chapter = new Chapter();
                             chapter.setChapterName(a.text());
                             chapter.setUri(uri);
-                            chapter.setBookInfoId(bookInfo.getId());
+                            chapter.setBookInfo(bookInfo);
                             chapter.setChapterOrder(count.addAndGet(1));
+                            chapter.setCompleted(false);
                             chapterList.add(chapter);
                         }
                     }
@@ -219,7 +244,7 @@ public class SearchService {
         }
     }
 
-    @Retryable(value = {Exception.class}, backoff = @Backoff(value = 1000L, maxDelay = 500L))
+    @Retryable(value = {Exception.class}, backoff = @Backoff(maxDelay = 500L))
     private Document get(String url) {
         Document document = null;
         try {

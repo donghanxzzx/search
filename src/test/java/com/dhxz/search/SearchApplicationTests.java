@@ -7,16 +7,6 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.service.SearchService;
-import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpHeaders;
-import org.springframework.test.context.junit4.SpringRunner;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -26,6 +16,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.junit4.SpringRunner;
 
 @Slf4j
 @RunWith(SpringRunner.class)
@@ -75,7 +74,7 @@ public class SearchApplicationTests {
                 .findByBookInfoId(bookInfo.getId());
         FileOutputStream fos = new FileOutputStream(new File(bookInfo.getTitle() + ".txt"));
         chapters.forEach(item -> {
-            Optional<Content> optional = contentRepository.findById(item.getContentId());
+            Optional<Content> optional = contentRepository.findById(item.getContent().getId());
             if (optional.isPresent()) {
                 try {
                     String content = optional.get().getContent();
@@ -113,6 +112,13 @@ public class SearchApplicationTests {
     @Test
     public void readContentTests() throws InterruptedException {
         searchService.readContent(bookInfoRepository.findById(3L).orElseThrow(RuntimeException::new));
+        Thread.currentThread().join();
+    }
+
+    @Test
+    public void readContentTest() throws InterruptedException {
+        searchService
+                .readContent(bookInfoRepository.findById(2L).orElseThrow(RuntimeException::new));
         Thread.currentThread().join();
     }
 
