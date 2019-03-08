@@ -12,6 +12,7 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.vo.BookInfoVo;
+import com.google.common.util.concurrent.RateLimiter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -53,7 +54,7 @@ public class SearchService {
     private final String top = base + "/top.html";
     private final String topAllVisit = base + "/top-allvisit";
     private final Integer allVisitMaxPage = 741;
-
+    private final static RateLimiter limiter = RateLimiter.create(1000.0);
     private ExecutorService commonTaskExecutor = Executors.newFixedThreadPool(16,
             new ThreadFactory() {
                 private AtomicInteger counter = new AtomicInteger(0);
@@ -263,6 +264,7 @@ public class SearchService {
 
     @Retryable(value = {Exception.class}, backoff = @Backoff(maxDelay = 500L))
     private Document get(String url) {
+        limiter.acquire();
         Document document = null;
         try {
             document = Jsoup.connect(url).header(HttpHeaders.USER_AGENT,
