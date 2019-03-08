@@ -54,7 +54,7 @@ public class SearchService {
     private final String topAllVisit = base + "/top-allvisit";
     private final Integer allVisitMaxPage = 741;
 
-    private ExecutorService commonTaskExecutor = Executors.newFixedThreadPool(64,
+    private ExecutorService commonTaskExecutor = Executors.newFixedThreadPool(32,
             new ThreadFactory() {
                 private AtomicInteger counter = new AtomicInteger(0);
 
@@ -67,7 +67,7 @@ public class SearchService {
                     return taskThread;
                 }
             });
-    private ExecutorService contentTaskExecutor = Executors.newFixedThreadPool(64,
+    private ExecutorService contentTaskExecutor = Executors.newFixedThreadPool(32,
             new ThreadFactory() {
                 private AtomicInteger counter = new AtomicInteger(0);
 
