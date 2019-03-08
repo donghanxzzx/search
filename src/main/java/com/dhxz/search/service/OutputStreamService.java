@@ -1,8 +1,5 @@
 package com.dhxz.search.service;
 
-import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
-import static com.dhxz.search.exception.ExceptionEnum.CHAPTER_NOT_COMPLETED;
-
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
 import com.dhxz.search.domain.Content;
@@ -10,15 +7,20 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.vo.BookInfoVo;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.stereotype.Service;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.util.List;
 import java.util.Optional;
-import javax.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.stereotype.Service;
+
+import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
+import static com.dhxz.search.exception.ExceptionEnum.CHAPTER_NOT_COMPLETED;
 
 /**
  * @author 10066610
@@ -34,8 +36,8 @@ public class OutputStreamService {
     private ContentRepository contentRepository;
 
     public OutputStreamService(BookInfoRepository bookInfoRepository,
-            ChapterRepository chapterRepository,
-            ContentRepository contentRepository) {
+                               ChapterRepository chapterRepository,
+                               ContentRepository contentRepository) {
         this.bookInfoRepository = bookInfoRepository;
         this.chapterRepository = chapterRepository;
         this.contentRepository = contentRepository;
@@ -45,10 +47,10 @@ public class OutputStreamService {
      * 下载书籍
      *
      * @param bookInfoVo 书本信息
-     * @param response 目标地址
+     * @param response   目标地址
      * @return 文件
      */
-    public HttpServletResponse downloadBook(BookInfoVo bookInfoVo, HttpServletResponse response) {
+    public HttpServletResponse downloadBook(BookInfoVo bookInfoVo, HttpServletResponse response, HttpServletRequest request) {
         BookInfo book = bookInfoRepository.findById(bookInfoVo.getId())
                 .orElseThrow(BOOK_NOT_FOUND);
         if (chapterRepository.existsByBookInfoAndCompleted(book, false)) {
@@ -57,12 +59,17 @@ public class OutputStreamService {
         List<Chapter> chapters = chapterRepository
                 .findByBookInfoIdOrderByChapterOrderAsc(book.getId());
         StringBuilder sb = new StringBuilder();
+        sb.append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">");
         chapters.forEach(item -> {
             Optional<Content> optional = contentRepository.findById(item.getContent().getId());
             if (optional.isPresent()) {
                 String content = optional.get().getContent();
-                content = "\t" + content + "\r\n";
-                sb.append(content);
+                String[] sub = content.split("。");
+                sb.append("\t");
+                for (String s : sub) {
+                    sb.append("\r\n").append(s).append("。");
+                }
+                sb.append("\t");
             }
         });
         try {

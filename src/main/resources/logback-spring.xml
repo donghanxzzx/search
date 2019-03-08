@@ -1,6 +1,6 @@
 <configuration>
     <!--appender-->
-    <springProfile name="default">
+    <springProfile name="default,dev">
         <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <pattern>%d [%thread] %-5level %logger{32} - %msg%n</pattern>
@@ -50,6 +50,7 @@
 
     <springProfile name="dev,test,prod">
         <root level="info">
+            <appender-ref ref="console"/>
             <appender-ref ref="file"/>
             <appender-ref ref="error-file"/>
         </root>

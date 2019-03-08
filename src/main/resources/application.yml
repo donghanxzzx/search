@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    active: dev
   datasource:
     url: jdbc:mysql://127.0.0.1:3307/books
     password: 123456
@@ -15,6 +17,7 @@ spring:
         implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
         physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy
     database-platform: org.hibernate.dialect.MySQL8Dialect
+
 logging:
   level:
     root: info

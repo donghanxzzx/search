@@ -1,20 +1,22 @@
 package com.dhxz.search.web.controller;
 
-import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
-import static com.dhxz.search.predicate.Predicates.hasNotCompletedBookInfo;
-import static java.util.stream.Collectors.toList;
-
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.service.OutputStreamService;
 import com.dhxz.search.service.SearchService;
 import com.dhxz.search.vo.BookInfoVo;
-import java.util.List;
-import javax.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.util.List;
+
+import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
+import static com.dhxz.search.predicate.Predicates.hasNotCompletedBookInfo;
+import static java.util.stream.Collectors.toList;
 
 @RestController
 public class SyncController {
@@ -24,8 +26,8 @@ public class SyncController {
     private final String SUCCESS = "SUCCESS";
 
     public SyncController(SearchService searchService,
-            OutputStreamService outputStreamService,
-            BookInfoRepository bookInfoRepository) {
+                          OutputStreamService outputStreamService,
+                          BookInfoRepository bookInfoRepository) {
         this.searchService = searchService;
         this.outputStreamService = outputStreamService;
         this.bookInfoRepository = bookInfoRepository;
@@ -63,14 +65,15 @@ public class SyncController {
 
     @GetMapping("/download/{bookId}")
     public ResponseEntity<String> download(@PathVariable("bookId") Long bookId,
-            HttpServletResponse response) {
+                                           HttpServletRequest request,
+                                           HttpServletResponse response) {
         BookInfo book = bookInfoRepository.findById(bookId).orElseThrow(BOOK_NOT_FOUND);
 
-        outputStreamService.downloadBook(BookInfoVo.toVo(book), response);
+        outputStreamService.downloadBook(BookInfoVo.toVo(book), response, request);
         return ResponseEntity.ok(SUCCESS);
     }
 
     private List<BookInfo> pageAll() {
-        return bookInfoRepository.findAll();
+        return bookInfoRepository.findAllByOrderByBookOrderAsc();
     }
 }
