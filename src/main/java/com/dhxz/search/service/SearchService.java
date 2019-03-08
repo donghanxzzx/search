@@ -1,10 +1,13 @@
 package com.dhxz.search.service;
 
+import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
 import static com.dhxz.search.predicate.Predicates.hasNotCompletedChapter;
+import static java.util.stream.Collectors.toList;
 
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
 import com.dhxz.search.domain.Content;
+import com.dhxz.search.predicate.Predicates;
 import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
@@ -125,9 +128,12 @@ public class SearchService {
     public void readChapter(BookInfoVo vo) {
         commonTaskExecutor.execute(() -> {
             BookInfo infoInDb = bookInfoRepository.findById(vo.getId())
-                    .orElseThrow(RuntimeException::new);
-            chapterRepository.saveAll(chapter(infoInDb.getInfoUrl(), new ArrayList<>(), infoInDb));
+                    .orElseThrow(BOOK_NOT_FOUND);
 
+            List<Chapter> chapter = chapter(infoInDb.getInfoUrl(), new ArrayList<>(), infoInDb);
+            chapterRepository.saveAll(
+                    chapter.stream().filter(Predicates.distinctByKey(Chapter::getUri))
+                            .collect(toList()));
             infoInDb.setCompleted(true);
             bookInfoRepository.saveAndFlush(infoInDb);
         });
@@ -197,6 +203,7 @@ public class SearchService {
         log.info("bookInfo:{}", bookInfo);
         Document document = get(url);
         if (Objects.nonNull(document)) {
+            System.out.println(document);
             for (Element element : document.select(".ablum_read")) {
                 if (element.text().contains("查看目录")) {
                     for (Element a : element.select("a")) {
@@ -208,7 +215,7 @@ public class SearchService {
                                 // 如果请求到了数据
                                 if (Objects.nonNull(currentPage)) {
                                     handleCurrentPage(currentPage, bookInfo, count, chapterList);
-                                    currentUrl = next(currentPage.select(".page"));
+                                    currentUrl = next(currentPage.select(".page"), currentUrl);
                                 }
                             } while (!StringUtils.isEmpty(currentUrl));
                         }
@@ -278,13 +285,16 @@ public class SearchService {
         }
     }
 
-    private String next(Elements page) {
+    private String next(Elements page, String currentUrl) {
         if (!CollectionUtils.isEmpty(page) && page.get(0).text().contains("下一页")) {
             Elements aList = page.get(0).select("a");
             String nextUrl = "";
             for (Element element : aList) {
                 if (element.text().contains("下一页")) {
                     nextUrl = base + element.attr("href");
+                    if (StringUtils.pathEquals(currentUrl, nextUrl)) {
+                        return null;
+                    }
                 }
             }
             if (!StringUtils.isEmpty(nextUrl)) {
