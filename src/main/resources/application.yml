@@ -5,7 +5,7 @@ spring:
     username: root
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 32
+      maximum-pool-size: 64
   jpa:
     database: mysql
     show-sql: true
