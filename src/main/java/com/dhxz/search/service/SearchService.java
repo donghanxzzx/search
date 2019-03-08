@@ -57,8 +57,8 @@ public class SearchService {
 
                 @Override
                 public Thread newThread(Runnable r) {
-                    Thread taskThread = new Thread();
-                    taskThread.setName("CommonTask-" + counter.addAndGet(1));
+                    Thread taskThread = new Thread(r);
+                    taskThread.setName("CommonTaskPool-" + counter.addAndGet(1));
                     taskThread.setUncaughtExceptionHandler(
                             (t, e) -> log.error("当前任务执行失败 线程:{} 原因:{}", t, e));
                     return taskThread;
@@ -70,8 +70,8 @@ public class SearchService {
 
                 @Override
                 public Thread newThread(Runnable r) {
-                    Thread taskThread = new Thread();
-                    taskThread.setName("ContentTask-" + counter.addAndGet(1));
+                    Thread taskThread = new Thread(r);
+                    taskThread.setName("ContentTaskPool-" + counter.addAndGet(1));
                     taskThread.setUncaughtExceptionHandler(
                             (t, e) -> log.error("当前任务执行失败 线程:{} 原因:{}", t, e));
                     return taskThread;
