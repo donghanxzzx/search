@@ -30,4 +30,4 @@ spring:
   datasource:
     url: jdbc:mysql://34.85.73.209:3308/books
   jpa:
-    show-sql: false
+    show-sql: true

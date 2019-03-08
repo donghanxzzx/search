@@ -62,7 +62,7 @@ public class SearchService {
                     return taskThread;
                 }
             });
-    private ExecutorService contentTaskExecutor = Executors.newFixedThreadPool(64,
+    private ExecutorService contentTaskExecutor = Executors.newFixedThreadPool(32,
             new ThreadFactory() {
                 private AtomicInteger counter = new AtomicInteger(0);
 
@@ -98,6 +98,7 @@ public class SearchService {
                 allVisitBookInfo(item);
             });
         });
+
     }
 
     @Transactional(rollbackOn = Exception.class)
@@ -122,6 +123,7 @@ public class SearchService {
     }
 
     public void readChapter(BookInfoVo vo) {
+
         commonTaskExecutor.execute(() -> {
             BookInfo infoInDb = bookInfoRepository.findById(vo.getId())
                     .orElseThrow(BOOK_NOT_FOUND);
@@ -136,7 +138,7 @@ public class SearchService {
     }
 
     public void readContent(BookInfoVo vo) {
-        contentTaskExecutor.execute(
+        commonTaskExecutor.execute(
                 () -> {
                     log.info("bookInfo:{}", vo);
                     List<Chapter> chapters =
@@ -164,6 +166,7 @@ public class SearchService {
                     }
                     chapterRepository.saveAll(chapters);
                 });
+
     }
 
     public void loadContext(Chapter chapter) {
