@@ -12,7 +12,7 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.vo.BookInfoVo;
-import com.google.common.util.concurrent.RateLimiter;
+import com.dhxz.search.web.utils.ClientUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -25,13 +25,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import org.springframework.http.HttpHeaders;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -48,13 +44,14 @@ public class SearchService {
     private ContentRepository contentRepository;
     private ChapterRepository chapterRepository;
     private BookInfoRepository bookInfoRepository;
+    private ClientUtil clientUtil;
     private final String next = "-->>";
     private final String base = "http://m.55lewen.com";
     private final String full = base + "/full/";
     private final String top = base + "/top.html";
     private final String topAllVisit = base + "/top-allvisit";
     private final Integer allVisitMaxPage = 741;
-    private final static RateLimiter limiter = RateLimiter.create(1000.0);
+
     private ExecutorService commonTaskExecutor = Executors.newFixedThreadPool(16,
             new ThreadFactory() {
                 private AtomicInteger counter = new AtomicInteger(0);
@@ -83,10 +80,11 @@ public class SearchService {
             });
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
-            BookInfoRepository bookInfoRepository) {
+            BookInfoRepository bookInfoRepository, ClientUtil clientUtil) {
         this.contentRepository = contentRepository;
         this.chapterRepository = chapterRepository;
         this.bookInfoRepository = bookInfoRepository;
+        this.clientUtil = clientUtil;
     }
 
     public void initAllVisitBookInfo() {
@@ -108,7 +106,7 @@ public class SearchService {
     @Transactional(rollbackOn = Exception.class)
     public void allVisitBookInfo(final BookInfoVo vo) {
         log.info("BookInfo:{}", vo);
-        Document topAllVisit = get(vo.getInfoUrl());
+        Document topAllVisit = clientUtil.get(vo.getInfoUrl());
         if (Objects.nonNull(topAllVisit)) {
             Elements bookInfoElements = topAllVisit.select(".cover").get(0).select(".blue");
             List<BookInfo> bookInfos = new ArrayList<>();
@@ -174,7 +172,7 @@ public class SearchService {
     public void loadContext(Chapter chapter) {
         String uri = chapter.getUri();
         log.info("chapterUri:{}", uri);
-        Document beginRead = get(base + uri);
+        Document beginRead = clientUtil.get(base + uri);
         StringBuilder sb = new StringBuilder();
         content(sb, beginRead);
         String pattern;
@@ -186,7 +184,7 @@ public class SearchService {
         String nextPageUri = getNextUri(beginRead);
 
         do {
-            Document nextPage = get(base + nextPageUri);
+            Document nextPage = clientUtil.get(base + nextPageUri);
             content(sb, nextPage);
             nextPageUri = getNextUri(nextPage);
         } while (!StringUtils.isEmpty(nextPageUri) && nextPageUri.startsWith(pattern));
@@ -201,7 +199,7 @@ public class SearchService {
     private List<Chapter> chapter(String url, List<Chapter> chapterList, BookInfo bookInfo) {
         final AtomicInteger count = new AtomicInteger(0);
         log.info("bookInfo:{}", bookInfo);
-        Document document = get(url);
+        Document document = clientUtil.get(url);
         if (Objects.nonNull(document)) {
             System.out.println(document);
             for (Element element : document.select(".ablum_read")) {
@@ -211,7 +209,7 @@ public class SearchService {
                             // 目录url
                             String currentUrl = base + a.attr("href");
                             do {
-                                Document currentPage = get(currentUrl);
+                                Document currentPage = clientUtil.get(currentUrl);
                                 // 如果请求到了数据
                                 if (Objects.nonNull(currentPage)) {
                                     handleCurrentPage(currentPage, bookInfo, count, chapterList);
@@ -260,21 +258,6 @@ public class SearchService {
                 context.append(text);
             }
         }
-    }
-
-    @Retryable(value = {Exception.class}, backoff = @Backoff(maxDelay = 500L))
-    private Document get(String url) {
-        limiter.acquire();
-        Document document = null;
-        try {
-            document = Jsoup.connect(url).header(HttpHeaders.USER_AGENT,
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36")
-                    .header(HttpHeaders.ACCEPT_LANGUAGE, "zh,zh-CN;q=0.9,en;q=0.8,zh-TW;q=0.7")
-                    .get();
-        } catch (Exception e) {
-            log.error("请求错误:", e);
-        }
-        return document;
     }
 
     private String getNextUri(Document currentPage) {
