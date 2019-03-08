@@ -55,6 +55,12 @@ public class SyncController {
                 .collect(toList());
     }
 
+    public void sync() {
+        searchService.initAllVisitBookInfo();
+        page().stream().map(BookInfoVo::toVo).forEach(searchService::readChapter);
+        pageAll().stream().map(BookInfoVo::toVo).forEach(searchService::readContent);
+    }
+
     @GetMapping("/download/{bookId}")
     public ResponseEntity<String> download(@PathVariable("bookId") Long bookId,
             HttpServletResponse response) {
