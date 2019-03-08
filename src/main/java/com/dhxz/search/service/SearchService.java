@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.transaction.Transactional;
@@ -27,6 +25,7 @@ import org.jsoup.select.Elements;
 import org.springframework.http.HttpHeaders;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -43,36 +42,25 @@ public class SearchService {
     private ContentRepository contentRepository;
     private ChapterRepository chapterRepository;
     private BookInfoRepository bookInfoRepository;
+    private ThreadPoolTaskExecutor commonTaskExecutor;
+    private ThreadPoolTaskExecutor contentTaskExecutor;
     private final String next = "-->>";
     private final String base = "http://m.55lewen.com";
     private final String full = base + "/full/";
     private final String top = base + "/top.html";
     private final String topAllVisit = base + "/top-allvisit";
     private final Integer allVisitMaxPage = 1;
-    private final ExecutorService executorService = Executors.newFixedThreadPool(16);
 
-    private final ExecutorService contentExecutorService = Executors.newFixedThreadPool(16);
 
-    public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository, BookInfoRepository bookInfoRepository) {
+    public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
+            BookInfoRepository bookInfoRepository,
+            ThreadPoolTaskExecutor commonTaskExecutor,
+            ThreadPoolTaskExecutor contentTaskExecutor) {
         this.contentRepository = contentRepository;
         this.chapterRepository = chapterRepository;
         this.bookInfoRepository = bookInfoRepository;
-    }
-
-    public Document index() {
-        return get(base);
-    }
-
-    public Document top() {
-        return get(top);
-    }
-
-    public Document topAllVisit() {
-        return get(topAllVisit);
-    }
-
-    public Document full() {
-        return get(full);
+        this.commonTaskExecutor = commonTaskExecutor;
+        this.contentTaskExecutor = contentTaskExecutor;
     }
 
     public void initAllVisitBookInfo() {
@@ -85,7 +73,7 @@ public class SearchService {
             infoVos.add(vo);
         }
         infoVos.forEach(item -> {
-            executorService.execute(() -> {
+            commonTaskExecutor.execute(() -> {
                 allVisitBookInfo(item);
             });
         });
@@ -112,9 +100,9 @@ public class SearchService {
         }
     }
 
-    public void readChapter(BookInfo bookInfo) {
-        executorService.execute(() -> {
-            BookInfo infoInDb = bookInfoRepository.findById(bookInfo.getId())
+    public void readChapter(BookInfoVo vo) {
+        commonTaskExecutor.execute(() -> {
+            BookInfo infoInDb = bookInfoRepository.findById(vo.getId())
                     .orElseThrow(RuntimeException::new);
             chapterRepository.saveAll(chapter(infoInDb.getInfoUrl(), new ArrayList<>(), infoInDb));
 
@@ -123,17 +111,18 @@ public class SearchService {
         });
     }
 
-    public void readContent(BookInfo bookInfo) {
-        executorService.execute(
+    public void readContent(BookInfoVo vo) {
+        commonTaskExecutor.execute(
                 () -> {
-                    log.info("bookInfo:{}", bookInfo);
+                    log.info("bookInfo:{}", vo);
                     List<Chapter> chapters =
-                            chapterRepository.findByBookInfoId(bookInfo.getId()).stream()
+                            chapterRepository.findByBookInfoIdOrderByChapterOrderAsc(vo.getId())
+                                    .stream()
                                     .filter(hasNotCompletedChapter())
                                     .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
                     final CountDownLatch chapterLatch = new CountDownLatch(chapters.size());
                     for (Chapter chapter : chapters) {
-                        contentExecutorService.execute(() -> {
+                        contentTaskExecutor.execute(() -> {
                             try {
                                 loadContext(chapter);
                             } catch (Exception e) {

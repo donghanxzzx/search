@@ -2,18 +2,14 @@ package com.dhxz.search;
 
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
-import com.dhxz.search.domain.Content;
 import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.service.SearchService;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import lombok.extern.slf4j.Slf4j;
@@ -67,26 +63,12 @@ public class SearchApplicationTests {
 
     @Test
     public void testOutputFile() throws IOException {
-        List<BookInfo> all = bookInfoRepository.findAll();
-        System.out.println(all.size());
-        BookInfo bookInfo = all.get(0);
-        List<Chapter> chapters = chapterRepository
-                .findByBookInfoId(bookInfo.getId());
-        FileOutputStream fos = new FileOutputStream(new File(bookInfo.getTitle() + ".txt"));
-        chapters.forEach(item -> {
-            Optional<Content> optional = contentRepository.findById(item.getContent().getId());
-            if (optional.isPresent()) {
-                try {
-                    String content = optional.get().getContent();
-                    content = "\t" + content + "\r\n";
-                    fos.write(content.getBytes());
-                    fos.flush();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
 
+        BookInfo bookInfo = bookInfoRepository.findById(2L).orElseThrow(RuntimeException::new);
+        List<Chapter> chapters = chapterRepository
+                .findByBookInfoIdOrderByChapterOrderAsc(bookInfo.getId());
+
+        System.out.println(chapters.size());
     }
 
 
@@ -104,22 +86,10 @@ public class SearchApplicationTests {
     }
 
     @Test
-    public void chapterTests() throws InterruptedException {
-        searchService.readChapter(bookInfoRepository.findById(3L).orElseThrow(RuntimeException::new));
-        Thread.currentThread().join();
-    }
-
-    @Test
-    public void readContentTests() throws InterruptedException {
-        searchService.readContent(bookInfoRepository.findById(3L).orElseThrow(RuntimeException::new));
-        Thread.currentThread().join();
-    }
-
-    @Test
-    public void readContentTest() throws InterruptedException {
-        searchService
-                .readContent(bookInfoRepository.findById(2L).orElseThrow(RuntimeException::new));
-        Thread.currentThread().join();
+    public void testChapter() {
+        boolean b = chapterRepository
+                .existsByBookInfoAndCompleted(bookInfoRepository.findById(3L).get(), true);
+        System.out.println(b);
     }
 
 }
