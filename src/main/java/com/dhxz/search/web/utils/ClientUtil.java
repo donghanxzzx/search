@@ -28,7 +28,6 @@ public class ClientUtil {
             document = Jsoup.connect(url).header(HttpHeaders.USER_AGENT,
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36")
                     .header(HttpHeaders.ACCEPT_LANGUAGE, "zh,zh-CN;q=0.9,en;q=0.8,zh-TW;q=0.7")
-                    .proxy("localhost", 1080)
                     .get();
         } catch (Exception e) {
             log.error("请求错误:", e);
@@ -47,7 +46,6 @@ public class ClientUtil {
                     .header(HttpHeaders.ACCEPT_ENCODING, "gzip, deflate, br")
                     .header(HttpHeaders.ACCEPT, "application/json")
                     .requestBody(jsonBody)
-                    .proxy("localhost", 1080)
                     .post();
         } catch (Exception e) {
             log.error("请求错误:", e);
