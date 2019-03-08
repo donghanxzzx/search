@@ -10,4 +10,5 @@ public class ThreadStatusVo {
     private int largestPoolSize;
     private long completedTaskCount;
     private long taskCount;
+    private boolean commitStatus;
 }

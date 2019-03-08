@@ -22,10 +22,10 @@ import static java.util.stream.Collectors.toList;
 
 @RestController
 public class SyncController {
+    private static final String SUCCESS = "SUCCESS";
     private SearchService searchService;
     private OutputStreamService outputStreamService;
     private BookInfoRepository bookInfoRepository;
-    private final String SUCCESS = "SUCCESS";
 
     public SyncController(SearchService searchService,
                           OutputStreamService outputStreamService,
@@ -39,24 +39,30 @@ public class SyncController {
     @GetMapping("/readBookInfo")
     public ResponseEntity<ThreadStatusVo> readBookInfo() {
         ThreadStatusVo vo = searchService.checkThread();
-        if (vo.getActiveCount() == 0)
+        if (vo.getActiveCount() == 0) {
             searchService.initAllVisitBookInfo();
+            vo.setCommitStatus(true);
+        }
         return ResponseEntity.ok(vo);
     }
 
     @GetMapping("/readChapter")
     public ResponseEntity<ThreadStatusVo> readChapter() {
         ThreadStatusVo vo = searchService.checkThread();
-        if (vo.getActiveCount() == 0)
+        if (vo.getActiveCount() == 0) {
             page().stream().map(BookInfoVo::toVo).forEach(searchService::readChapter);
+            vo.setCommitStatus(true);
+        }
         return ResponseEntity.ok(vo);
     }
 
     @GetMapping("/readContent")
     public ResponseEntity<ThreadStatusVo> readContent() {
         ThreadStatusVo vo = searchService.checkThread();
-        if (vo.getActiveCount() == 0)
+        if (vo.getActiveCount() == 0) {
             pageAll().stream().map(BookInfoVo::toVo).forEach(searchService::readContent);
+            vo.setCommitStatus(true);
+        }
         return ResponseEntity.ok(vo);
     }
 
