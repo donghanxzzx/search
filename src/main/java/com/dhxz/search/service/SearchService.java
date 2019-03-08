@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.transaction.Transactional;
@@ -25,7 +28,6 @@ import org.jsoup.select.Elements;
 import org.springframework.http.HttpHeaders;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -42,8 +44,6 @@ public class SearchService {
     private ContentRepository contentRepository;
     private ChapterRepository chapterRepository;
     private BookInfoRepository bookInfoRepository;
-    private ThreadPoolTaskExecutor commonTaskExecutor;
-    private ThreadPoolTaskExecutor contentTaskExecutor;
     private final String next = "-->>";
     private final String base = "http://m.55lewen.com";
     private final String full = base + "/full/";
@@ -51,16 +51,38 @@ public class SearchService {
     private final String topAllVisit = base + "/top-allvisit";
     private final Integer allVisitMaxPage = 1;
 
+    private ExecutorService commonTaskExecutor = Executors.newFixedThreadPool(16,
+            new ThreadFactory() {
+                private AtomicInteger counter = new AtomicInteger(0);
+
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread taskThread = new Thread();
+                    taskThread.setName("CommonTask-" + counter.addAndGet(1));
+                    taskThread.setUncaughtExceptionHandler(
+                            (t, e) -> log.error("当前任务执行失败 线程:{} 原因:{}", t, e));
+                    return taskThread;
+                }
+            });
+    private ExecutorService contentTaskExecutor = Executors.newFixedThreadPool(16,
+            new ThreadFactory() {
+                private AtomicInteger counter = new AtomicInteger(0);
+
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread taskThread = new Thread();
+                    taskThread.setName("ContentTask-" + counter.addAndGet(1));
+                    taskThread.setUncaughtExceptionHandler(
+                            (t, e) -> log.error("当前任务执行失败 线程:{} 原因:{}", t, e));
+                    return taskThread;
+                }
+            });
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
-            BookInfoRepository bookInfoRepository,
-            ThreadPoolTaskExecutor commonTaskExecutor,
-            ThreadPoolTaskExecutor contentTaskExecutor) {
+            BookInfoRepository bookInfoRepository) {
         this.contentRepository = contentRepository;
         this.chapterRepository = chapterRepository;
         this.bookInfoRepository = bookInfoRepository;
-        this.commonTaskExecutor = commonTaskExecutor;
-        this.contentTaskExecutor = contentTaskExecutor;
     }
 
     public void initAllVisitBookInfo() {
