@@ -8,11 +8,13 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.repository.ChapterRepository;
 import com.dhxz.search.repository.ContentRepository;
 import com.dhxz.search.vo.BookInfoVo;
+import com.dhxz.search.vo.ThreadStatusVo;
 import com.dhxz.search.web.utils.ClientUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -21,7 +23,9 @@ import javax.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -41,6 +45,7 @@ public class SearchService {
     private ContentRepository contentRepository;
     private ChapterRepository chapterRepository;
     private BookInfoRepository bookInfoRepository;
+    private ThreadPoolTaskExecutor commonTaskExecutor;
     private ClientUtil clientUtil;
     private final String next = "-->>";
     private final String base = "http://m.55lewen.com";
@@ -49,39 +54,32 @@ public class SearchService {
     private final String topAllVisit = base + "/top-allvisit";
     private final Integer allVisitMaxPage = 741;
 
-    private ExecutorService commonTaskExecutor = Executors.newFixedThreadPool(16,
-            new ThreadFactory() {
-                private AtomicInteger counter = new AtomicInteger(0);
-
-                @Override
-                public Thread newThread(Runnable r) {
-                    Thread taskThread = new Thread(r);
-                    taskThread.setName("CommonTaskPool-" + counter.addAndGet(1));
-                    taskThread.setUncaughtExceptionHandler(
-                            (t, e) -> log.error("当前任务执行失败 线程:{} 原因:{}", t, e));
-                    return taskThread;
-                }
-            });
-    private ExecutorService contentTaskExecutor = Executors.newFixedThreadPool(32,
-            new ThreadFactory() {
-                private AtomicInteger counter = new AtomicInteger(0);
-
-                @Override
-                public Thread newThread(Runnable r) {
-                    Thread taskThread = new Thread(r);
-                    taskThread.setName("ContentTaskPool-" + counter.addAndGet(1));
-                    taskThread.setUncaughtExceptionHandler(
-                            (t, e) -> log.error("当前任务执行失败 线程:{} 原因:{}", t, e));
-                    return taskThread;
-                }
-            });
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
-                         BookInfoRepository bookInfoRepository, ClientUtil clientUtil) {
+                         BookInfoRepository bookInfoRepository, ThreadPoolTaskExecutor commonTaskExecutor, ClientUtil clientUtil) {
         this.contentRepository = contentRepository;
         this.chapterRepository = chapterRepository;
         this.bookInfoRepository = bookInfoRepository;
+        this.commonTaskExecutor = commonTaskExecutor;
         this.clientUtil = clientUtil;
+    }
+
+    public ThreadStatusVo checkThread() {
+        int activeCount = commonTaskExecutor.getActiveCount();
+        ThreadPoolExecutor executor =
+                commonTaskExecutor.getThreadPoolExecutor();
+        int size = executor.getQueue().size();
+        int largestPoolSize = executor.getLargestPoolSize();
+        long taskCount = executor.getTaskCount();
+        long completedTaskCount = executor.getCompletedTaskCount();
+
+        ThreadStatusVo vo = new ThreadStatusVo();
+        vo.setActiveCount(activeCount);
+        vo.setQueueSize(size);
+        vo.setLargestPoolSize(largestPoolSize);
+        vo.setTaskCount(taskCount);
+        vo.setCompletedTaskCount(completedTaskCount);
+        return vo;
     }
 
     public void initAllVisitBookInfo() {
@@ -148,11 +146,12 @@ public class SearchService {
                                     .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
                     final CountDownLatch chapterLatch = new CountDownLatch(chapters.size());
                     for (Chapter chapter : chapters) {
-                        contentTaskExecutor.execute(() -> {
+                        commonTaskExecutor.execute(() -> {
                             try {
                                 loadContext(chapter);
                             } catch (Exception e) {
                                 chapter.setCompleted(false);
+                                chapterRepository.saveAndFlush(chapter);
                                 log.error("获取内容失败:{}", chapter);
                             } finally {
                                 chapterLatch.countDown();
@@ -164,7 +163,6 @@ public class SearchService {
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
-                    chapterRepository.saveAll(chapters);
                 });
 
     }
@@ -193,6 +191,7 @@ public class SearchService {
         contentRepository.saveAndFlush(content);
         chapter.setContent(content);
         chapter.setCompleted(true);
+        chapterRepository.saveAndFlush(chapter);
     }
 
 

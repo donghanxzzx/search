@@ -5,6 +5,7 @@ import com.dhxz.search.repository.BookInfoRepository;
 import com.dhxz.search.service.OutputStreamService;
 import com.dhxz.search.service.SearchService;
 import com.dhxz.search.vo.BookInfoVo;
+import com.dhxz.search.vo.ThreadStatusVo;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.util.List;
 
 import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
@@ -33,22 +35,29 @@ public class SyncController {
         this.bookInfoRepository = bookInfoRepository;
     }
 
+
     @GetMapping("/readBookInfo")
-    public ResponseEntity<String> readBookInfo() {
-        searchService.initAllVisitBookInfo();
-        return ResponseEntity.ok(SUCCESS);
+    public ResponseEntity<ThreadStatusVo> readBookInfo() {
+        ThreadStatusVo vo = searchService.checkThread();
+        if (vo.getActiveCount() == 0)
+            searchService.initAllVisitBookInfo();
+        return ResponseEntity.ok(vo);
     }
 
     @GetMapping("/readChapter")
-    public ResponseEntity<String> readChapter() {
-        page().stream().map(BookInfoVo::toVo).forEach(searchService::readChapter);
-        return ResponseEntity.ok(SUCCESS);
+    public ResponseEntity<ThreadStatusVo> readChapter() {
+        ThreadStatusVo vo = searchService.checkThread();
+        if (vo.getActiveCount() == 0)
+            page().stream().map(BookInfoVo::toVo).forEach(searchService::readChapter);
+        return ResponseEntity.ok(vo);
     }
 
     @GetMapping("/readContent")
-    public ResponseEntity<String> readContent() {
-        pageAll().stream().map(BookInfoVo::toVo).forEach(searchService::readContent);
-        return ResponseEntity.ok(SUCCESS);
+    public ResponseEntity<ThreadStatusVo> readContent() {
+        ThreadStatusVo vo = searchService.checkThread();
+        if (vo.getActiveCount() == 0)
+            pageAll().stream().map(BookInfoVo::toVo).forEach(searchService::readContent);
+        return ResponseEntity.ok(vo);
     }
 
     private List<BookInfo> page() {
@@ -68,8 +77,13 @@ public class SyncController {
                                            HttpServletRequest request,
                                            HttpServletResponse response) {
         BookInfo book = bookInfoRepository.findById(bookId).orElseThrow(BOOK_NOT_FOUND);
-
-        outputStreamService.downloadBook(BookInfoVo.toVo(book), response, request);
+        String path = System.getProperty("java.io.tmpdir");
+        File file = new File(path + book.getTitle() + ".txt");
+        if (file.exists()) {
+            outputStreamService.readFromDisk(BookInfoVo.toVo(book), file, response);
+        } else {
+            outputStreamService.downloadBook(BookInfoVo.toVo(book), response);
+        }
         return ResponseEntity.ok(SUCCESS);
     }
 

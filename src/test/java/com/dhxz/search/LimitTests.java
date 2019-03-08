@@ -11,6 +11,11 @@ public class LimitTests {
     private final static RateLimiter limiter = RateLimiter.create(1.0);
 
     @Test
+    public void test() {
+        System.out.println(System.getProperty("java.io.tmpdir"));
+    }
+
+    @Test
     public void testLimit() {
 
         Collections.singleton(1)

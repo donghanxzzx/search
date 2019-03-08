@@ -10,10 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.BufferedOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.URLEncoder;
 import java.util.List;
 
@@ -49,7 +47,7 @@ public class OutputStreamService {
      * @param response   目标地址
      * @return 文件
      */
-    public HttpServletResponse downloadBook(BookInfoVo bookInfoVo, HttpServletResponse response, HttpServletRequest request) {
+    public HttpServletResponse downloadBook(BookInfoVo bookInfoVo, HttpServletResponse response) {
         BookInfo book = bookInfoRepository.findById(bookInfoVo.getId())
                 .orElseThrow(BOOK_NOT_FOUND);
         if (chapterRepository.existsByBookInfoAndCompleted(book, false)) {
@@ -62,28 +60,59 @@ public class OutputStreamService {
         List<Long> contentIds = chapters.stream().map(item -> item.getContent().getId()).collect(toList());
         long count = contentRepository.findAllById(contentIds)
                 .stream()
-                .map(item -> sb.append("<p>")
+                .map(item -> sb
                         .append("\t")
-                        .append(item.getContent().replaceAll("。", "。\r\n<br>"))
-                        .append("\r\n")
-                        .append("</p>"))
+                        .append(item.getContent().replaceAll("。", "。\r\n"))
+                        .append("\r\n"))
                 .count();
         try {
             String title = book.getTitle() + ".txt";
             byte[] bytes = sb.toString().getBytes();
-            response.reset();
-            response.resetBuffer();
-            response.addHeader(HttpHeaders.CONTENT_DISPOSITION,
-                    "attachment;fileName=" + URLEncoder.encode(title, "UTF-8"));
-            response.addHeader(HttpHeaders.CONTENT_LENGTH, "" + bytes.length);
-            BufferedOutputStream bos = new BufferedOutputStream(
-                    response.getOutputStream());
-            response.setContentType("application/octet-stream");
+            BufferedOutputStream bos = writeToResponseWithoutCloseSource(response, title, bytes);
+            bos.close();
+            String separator = File.separator;
+            String path = System.getProperty("java.io.tmpdir");
+            if (!path.endsWith(separator)) {
+                path = path + separator;
+            }
+
+            path = path + title;
+            bos = new BufferedOutputStream(new FileOutputStream(new File(path)));
             bos.write(bytes);
+            bos.flush();
             bos.close();
         } catch (IOException ex) {
             log.error("IO异常:", ex);
         }
         return response;
+    }
+
+    public void readFromDisk(BookInfoVo vo, File file, HttpServletResponse response) {
+        try (
+                BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file));
+                BufferedOutputStream bos = new BufferedOutputStream(response.getOutputStream());
+        ) {
+            String title = file.getName();
+            byte[] buffer = new byte[bis.available()];
+            int read = bis.read(buffer);
+            writeToResponseWithoutCloseSource(response, title, buffer);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private BufferedOutputStream writeToResponseWithoutCloseSource(HttpServletResponse response, String title, byte[] bytes) throws IOException {
+        response.reset();
+        response.resetBuffer();
+        response.addHeader(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment;fileName=" + URLEncoder.encode(title, "UTF-8"));
+        response.addHeader(HttpHeaders.CONTENT_LENGTH, "" + bytes.length);
+        BufferedOutputStream bos = new BufferedOutputStream(
+                response.getOutputStream());
+        response.setContentType("application/octet-stream");
+        bos.write(bytes);
+        bos.flush();
+        return bos;
     }
 }
