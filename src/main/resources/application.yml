@@ -1,6 +1,4 @@
 spring:
-  profiles:
-    active: default
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/books
     password: 123456
