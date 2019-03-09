@@ -29,9 +29,6 @@ public class Chapter {
     @ManyToOne(cascade = {CascadeType.MERGE, CascadeType.REFRESH})
     @JoinColumn(name = "book_info_id", referencedColumnName = "id")
     private BookInfo bookInfo;
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "content_id", referencedColumnName = "id")
-    private Content content;
     private Integer chapterOrder;
     private Boolean completed;
 }

@@ -284,34 +284,6 @@ public class SearchService {
         return content;
     }
 
-    public void loadContext(Chapter chapter) {
-        String uri = chapter.getUri();
-        log.info("chapterUri:{}", uri);
-        Document beginRead = clientUtil.get(base + uri);
-        StringBuilder sb = new StringBuilder();
-        content(sb, beginRead);
-        String pattern;
-        if (uri.endsWith("/")) {
-            pattern = uri.substring(0, uri.length() - 1);
-        } else {
-            pattern = uri;
-        }
-        String nextPageUri = getNextUri(beginRead);
-
-        do {
-            Document nextPage = clientUtil.get(base + nextPageUri);
-            content(sb, nextPage);
-            nextPageUri = getNextUri(nextPage);
-        } while (!StringUtils.isEmpty(nextPageUri) && nextPageUri.startsWith(pattern));
-        Content content = new Content();
-        content.setContent(sb.toString());
-        contentRepository.saveAndFlush(content);
-        chapter.setContent(content);
-        chapter.setCompleted(true);
-        chapterRepository.saveAndFlush(chapter);
-    }
-
-
     private List<Chapter> chapter(String url, List<Chapter> chapterList, BookInfo bookInfo) {
         final AtomicInteger count = new AtomicInteger(0);
         log.info("bookInfo:{}", bookInfo);
