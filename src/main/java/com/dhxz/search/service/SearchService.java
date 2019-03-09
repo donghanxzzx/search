@@ -1,28 +1,26 @@
 package com.dhxz.search.service;
 
-import com.dhxz.search.domain.BookInfo;
-import com.dhxz.search.domain.Chapter;
-import com.dhxz.search.domain.Content;
+import com.dhxz.search.domain.*;
 import com.dhxz.search.predicate.Predicates;
-import com.dhxz.search.repository.BookInfoRepository;
-import com.dhxz.search.repository.ChapterRepository;
-import com.dhxz.search.repository.ContentRepository;
+import com.dhxz.search.repository.*;
 import com.dhxz.search.vo.BookInfoVo;
 import com.dhxz.search.vo.ThreadStatusVo;
 import com.dhxz.search.web.utils.ClientUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Node;
 import org.jsoup.select.Elements;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import javax.transaction.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -30,7 +28,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
+import static com.dhxz.search.exception.ExceptionEnum.CHAPTER_NOT_FOUND;
 import static com.dhxz.search.predicate.Predicates.hasNotCompletedChapter;
+import static com.google.common.collect.Lists.newArrayList;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -45,6 +45,8 @@ public class SearchService {
     private ContentRepository contentRepository;
     private ChapterRepository chapterRepository;
     private BookInfoRepository bookInfoRepository;
+    private PageRepository pageRepository;
+    private LineRepository lineRepository;
     private ThreadPoolTaskExecutor commonTaskExecutor;
     private ThreadPoolTaskExecutor contentTaskExecutor;
     private ClientUtil clientUtil;
@@ -57,19 +59,29 @@ public class SearchService {
 
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
-                         BookInfoRepository bookInfoRepository, ThreadPoolTaskExecutor commonTaskExecutor, ThreadPoolTaskExecutor contentTaskExecutor, ClientUtil clientUtil) {
+                         BookInfoRepository bookInfoRepository, PageRepository pageRepository, LineRepository lineRepository, ThreadPoolTaskExecutor commonTaskExecutor, ThreadPoolTaskExecutor contentTaskExecutor, ClientUtil clientUtil) {
         this.contentRepository = contentRepository;
         this.chapterRepository = chapterRepository;
         this.bookInfoRepository = bookInfoRepository;
+        this.pageRepository = pageRepository;
+        this.lineRepository = lineRepository;
         this.commonTaskExecutor = commonTaskExecutor;
         this.contentTaskExecutor = contentTaskExecutor;
         this.clientUtil = clientUtil;
     }
 
-    public ThreadStatusVo checkThread() {
-        int activeCount = commonTaskExecutor.getActiveCount();
+    public ThreadStatusVo checkCommendThread() {
+        return getThreadStatus(commonTaskExecutor);
+    }
+
+    public ThreadStatusVo checkContentThread() {
+        return getThreadStatus(contentTaskExecutor);
+    }
+
+    private ThreadStatusVo getThreadStatus(ThreadPoolTaskExecutor contentTaskExecutor) {
+        int activeCount = contentTaskExecutor.getActiveCount();
         ThreadPoolExecutor executor =
-                commonTaskExecutor.getThreadPoolExecutor();
+                contentTaskExecutor.getThreadPoolExecutor();
         int size = executor.getQueue().size();
         int largestPoolSize = executor.getLargestPoolSize();
         long taskCount = executor.getTaskCount();
@@ -138,35 +150,138 @@ public class SearchService {
     }
 
     public void readContent(BookInfoVo vo) {
-        commonTaskExecutor.execute(
-                () -> {
-                    log.info("bookInfo:{}", vo);
-                    List<Chapter> chapters =
-                            chapterRepository.findByBookInfoIdOrderByChapterOrderAsc(vo.getId())
-                                    .stream()
-                                    .filter(hasNotCompletedChapter())
-                                    .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
-                    final CountDownLatch chapterLatch = new CountDownLatch(chapters.size());
-                    for (Chapter chapter : chapters) {
-                        contentTaskExecutor.execute(() -> {
-                            try {
-                                loadContext(chapter);
-                            } catch (Exception e) {
-                                chapter.setCompleted(false);
-                                chapterRepository.saveAndFlush(chapter);
-                                log.error("获取内容失败:{}", chapter);
-                            } finally {
-                                chapterLatch.countDown();
-                            }
-                        });
-                    }
-                    try {
-                        chapterLatch.await();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                });
 
+        log.info("bookInfo:{}", vo);
+        List<Chapter> chapters =
+                chapterRepository.findByBookInfoIdOrderByChapterOrderAsc(vo.getId())
+                        .stream()
+                        .filter(hasNotCompletedChapter())
+                        .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
+
+        for (Chapter chapter : chapters) {
+            try {
+                loadContextWithPageLine(chapter);
+            } catch (Exception e) {
+                chapter.setCompleted(false);
+                chapterRepository.saveAndFlush(chapter);
+                log.error("获取内容失败:{}", chapter);
+            }
+        }
+    }
+
+    /**
+     * 带行的内容
+     *
+     * @param chapter 章节
+     */
+    public void loadContextWithPageLine(Chapter chapter) {
+
+        contentTaskExecutor.execute(()->{
+            String uri = chapter.getUri();
+            Chapter chapterInDb = chapterRepository.findById(chapter.getId()).orElseThrow(CHAPTER_NOT_FOUND);
+            log.info("chapterUri:{}", uri);
+            Document currentPage = clientUtil.get(base + uri);
+            int pageSize = handlePageSize(currentPage);
+            String uriPrefix = uri.substring(0, uri.lastIndexOf("/"));
+            for (int i = 0; i < pageSize; i++) {
+                Integer index = i + 1;
+                String pageUri = uriPrefix + "-" + index + "/";
+                handleContentPage(index, pageUri, chapterInDb, pageSize);
+
+            }
+            // 判断该章节是否处理完成
+            if (!pageRepository.existsByChapterIdAndCompletedFalse(chapterInDb.getId())) {
+                chapterInDb.setCompleted(true);
+                chapterRepository.saveAndFlush(chapterInDb);
+            }
+        });
+    }
+
+    private void handleContentPage(Integer pageOrder, String uri, Chapter chapterInDb, int pageSize) {
+        log.info("pageUri:{}", uri);
+        Document currentPage = clientUtil.get(base + uri);
+        if (Objects.nonNull(currentPage)) {
+
+            Optional<Page> pageUriOptional = pageRepository.findByPageUri(uri);
+            Elements nrNrs = currentPage.select(".nr_nr");
+            // 内容
+            Elements contentEle = nrNrs.select("#nr1");
+            if (!pageUriOptional.isPresent()) {
+
+                Page page = new Page();
+                page.setChapter(chapterInDb);
+                page.setPageOrder(pageOrder);
+                page.setPageUri(uri);
+                page.setPageSize(pageSize);
+                page.setCompleted(false);
+                pageRepository.saveAndFlush(page);
+                handleLine(contentEle, page);
+                pageRepository.saveAndFlush(page);
+            } else if (!pageUriOptional.get().getCompleted()) {
+                Page page = pageUriOptional.get();
+                List<Line> lines = lineRepository.findByPageIdOrderByLineOrderAsc(page.getId());
+                lineRepository.deleteAll(lines);
+                handleLine(contentEle, page);
+                pageRepository.saveAndFlush(page);
+            }
+        }
+    }
+
+
+    private int handlePageSize(Document firstPage) {
+        Elements titleEls = firstPage.select("#nr_title");
+        if (!CollectionUtils.isEmpty(titleEls)) {
+            String title = titleEls.get(0).text();
+            String[] split = title.split("/");
+            String s = split[1];
+            int idP = s.indexOf("页");
+            String pageSizeStr = s.substring(0, idP);
+            return Integer.valueOf(pageSizeStr);
+        }
+        return 0;
+    }
+
+    private void handleLine(Elements contentEle, Page page) {
+        List<Line> lineList = newArrayList();
+        for (Element element : contentEle) {
+            List<Node> nodes = element.childNodes();
+            int i = 0;
+            for (Node node : nodes) {
+                String s = node.toString();
+                s = s.replaceAll("<br>", "");
+                if (StringUtils.isNotBlank(s)) {
+                    s = cleanContent(s);
+                    if (StringUtils.isNotBlank(s)) {
+                        i = ++i;
+                        Line line = new Line();
+                        line.setLineOrder(i);
+                        line.setPage(page);
+                        line.setContent(s.trim());
+                        lineList.add(line);
+                    }
+                }
+            }
+        }
+        page.setCompleted(true);
+        lineRepository.saveAll(lineList);
+    }
+
+    private String cleanContent(String content) {
+        content = content.replaceAll("&nbsp;", "")
+                .replaceAll("nbsp;", "")
+                .replaceAll("bsp;", "")
+                .replaceAll("sp;", "")
+                .replaceAll("p;", "")
+                .replaceAll("--&gt;&gt;", "")
+                .replaceAll("&amn", "")
+                .replaceAll("&am", "")
+                .replaceAll("&a", "")
+                .replaceAll("&", "")
+                .replaceAll("b", "")
+                .replaceAll("-->>", "")
+                .replaceAll("本章未完，点击下一页继续阅读", "")
+                .trim();
+        return content;
     }
 
     public void loadContext(Chapter chapter) {
@@ -276,7 +391,7 @@ public class SearchService {
             for (Element element : aList) {
                 if (element.text().contains("下一页")) {
                     nextUrl = base + element.attr("href");
-                    if (StringUtils.pathEquals(currentUrl, nextUrl)) {
+                    if (StringUtils.equals(currentUrl, nextUrl)) {
                         return null;
                     }
                 }

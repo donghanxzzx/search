@@ -10,8 +10,8 @@ public class ThreadPoolConfig {
     @Bean
     public ThreadPoolTaskExecutor commonTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(32);
-        executor.setMaxPoolSize(64);
+        executor.setCorePoolSize(24);
+        executor.setMaxPoolSize(32);
         executor.setKeepAliveSeconds(30);
         executor.setThreadNamePrefix("common-task-thread-");
         return executor;
@@ -20,8 +20,8 @@ public class ThreadPoolConfig {
     @Bean
     public ThreadPoolTaskExecutor contentTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(32);
-        executor.setMaxPoolSize(64);
+        executor.setCorePoolSize(24);
+        executor.setMaxPoolSize(32);
         executor.setKeepAliveSeconds(30);
         executor.setThreadNamePrefix("content-task-thread-");
         return executor;

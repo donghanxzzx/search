@@ -12,7 +12,9 @@ public enum ExceptionEnum implements Supplier<ServiceException> {
      * 错误信息
      */
     BOOK_NOT_FOUND(10001, "未找到该书籍"),
-    CHAPTER_NOT_COMPLETED(10002, "章节未同步完成,请过段时间重试");
+    CHAPTER_NOT_COMPLETED(10002, "章节未同步完成,请过段时间重试"),
+    CHAPTER_NOT_FOUND(10003,"未找到该章节"),
+    ;
     private Integer errorCode;
     private String errorMessage;
 

@@ -38,7 +38,7 @@ public class SyncController {
 
     @GetMapping("/readBookInfo")
     public ResponseEntity<ThreadStatusVo> readBookInfo() {
-        ThreadStatusVo vo = searchService.checkThread();
+        ThreadStatusVo vo = searchService.checkCommendThread();
         if (vo.getActiveCount() == 0) {
             searchService.initAllVisitBookInfo();
             vo.setCommitStatus(true);
@@ -48,7 +48,7 @@ public class SyncController {
 
     @GetMapping("/readChapter")
     public ResponseEntity<ThreadStatusVo> readChapter() {
-        ThreadStatusVo vo = searchService.checkThread();
+        ThreadStatusVo vo = searchService.checkCommendThread();
         if (vo.getActiveCount() == 0) {
             page().stream().map(BookInfoVo::toVo).forEach(searchService::readChapter);
             vo.setCommitStatus(true);
@@ -58,7 +58,7 @@ public class SyncController {
 
     @GetMapping("/readContent")
     public ResponseEntity<ThreadStatusVo> readContent() {
-        ThreadStatusVo vo = searchService.checkThread();
+        ThreadStatusVo vo = searchService.checkContentThread();
         if (vo.getActiveCount() == 0) {
             pageAll().stream().map(BookInfoVo::toVo).forEach(searchService::readContent);
             vo.setCommitStatus(true);
@@ -70,12 +70,6 @@ public class SyncController {
         return bookInfoRepository.findAll().stream()
                 .filter(hasNotCompletedBookInfo())
                 .collect(toList());
-    }
-
-    public void sync() {
-        searchService.initAllVisitBookInfo();
-        page().stream().map(BookInfoVo::toVo).forEach(searchService::readChapter);
-        pageAll().stream().map(BookInfoVo::toVo).forEach(searchService::readContent);
     }
 
     @GetMapping("/download/{bookId}")
