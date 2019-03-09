@@ -80,7 +80,7 @@ public class SyncController {
         String path = System.getProperty("java.io.tmpdir");
         File file = new File(path + book.getTitle() + ".txt");
         if (file.exists()) {
-            outputStreamService.readFromDisk(BookInfoVo.toVo(book), file, response);
+            outputStreamService.readFromDisk(file, response);
         } else {
             outputStreamService.downloadBook(BookInfoVo.toVo(book), response);
         }

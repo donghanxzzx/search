@@ -88,10 +88,9 @@ public class OutputStreamService {
         return response;
     }
 
-    public void readFromDisk(BookInfoVo vo, File file, HttpServletResponse response) {
+    public void readFromDisk(File file, HttpServletResponse response) {
         try (
                 BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file));
-                BufferedOutputStream bos = new BufferedOutputStream(response.getOutputStream());
         ) {
             String title = file.getName();
             byte[] buffer = new byte[bis.available()];
@@ -114,6 +113,7 @@ public class OutputStreamService {
         response.setContentType("application/octet-stream");
         bos.write(bytes);
         bos.flush();
+        bos.close();
         return bos;
     }
 }
