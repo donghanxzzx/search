@@ -16,4 +16,14 @@ public class ThreadPoolConfig {
         executor.setThreadNamePrefix("common-task-thread-");
         return executor;
     }
+
+    @Bean
+    public ThreadPoolTaskExecutor contentTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(32);
+        executor.setMaxPoolSize(64);
+        executor.setKeepAliveSeconds(30);
+        executor.setThreadNamePrefix("content-task-thread-");
+        return executor;
+    }
 }

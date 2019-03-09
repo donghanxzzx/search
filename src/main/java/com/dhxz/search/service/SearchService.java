@@ -46,6 +46,7 @@ public class SearchService {
     private ChapterRepository chapterRepository;
     private BookInfoRepository bookInfoRepository;
     private ThreadPoolTaskExecutor commonTaskExecutor;
+    private ThreadPoolTaskExecutor contentTaskExecutor;
     private ClientUtil clientUtil;
     private final String next = "-->>";
     private final String base = "http://m.55lewen.com";
@@ -56,11 +57,12 @@ public class SearchService {
 
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
-                         BookInfoRepository bookInfoRepository, ThreadPoolTaskExecutor commonTaskExecutor, ClientUtil clientUtil) {
+                         BookInfoRepository bookInfoRepository, ThreadPoolTaskExecutor commonTaskExecutor, ThreadPoolTaskExecutor contentTaskExecutor, ClientUtil clientUtil) {
         this.contentRepository = contentRepository;
         this.chapterRepository = chapterRepository;
         this.bookInfoRepository = bookInfoRepository;
         this.commonTaskExecutor = commonTaskExecutor;
+        this.contentTaskExecutor = contentTaskExecutor;
         this.clientUtil = clientUtil;
     }
 
@@ -146,7 +148,7 @@ public class SearchService {
                                     .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
                     final CountDownLatch chapterLatch = new CountDownLatch(chapters.size());
                     for (Chapter chapter : chapters) {
-                        commonTaskExecutor.execute(() -> {
+                        contentTaskExecutor.execute(() -> {
                             try {
                                 loadContext(chapter);
                             } catch (Exception e) {
