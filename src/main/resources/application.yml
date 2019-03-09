@@ -1,8 +1,8 @@
 spring:
   profiles:
-    active: dev
+    active: default
   datasource:
-    url: jdbc:mysql://127.0.0.1:3307/books
+    url: jdbc:mysql://127.0.0.1:3306/books
     password: 123456
     username: root
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -12,7 +12,7 @@ spring:
     database: mysql
     show-sql: true
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
       naming:
         implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
         physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy

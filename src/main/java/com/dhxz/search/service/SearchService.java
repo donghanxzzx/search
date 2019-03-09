@@ -53,7 +53,7 @@ public class SearchService {
     private final String full = base + "/full/";
     private final String top = base + "/top.html";
     private final String topAllVisit = base + "/top-allvisit";
-    private final Integer allVisitMaxPage = 741;
+    private final Integer allVisitMaxPage = 1;
 
 
     public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
@@ -202,7 +202,6 @@ public class SearchService {
         log.info("bookInfo:{}", bookInfo);
         Document document = clientUtil.get(url);
         if (Objects.nonNull(document)) {
-            System.out.println(document);
             for (Element element : document.select(".ablum_read")) {
                 if (element.text().contains("查看目录")) {
                     for (Element a : element.select("a")) {

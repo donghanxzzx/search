@@ -30,6 +30,7 @@ public class ClientUtil {
                     .get();
         } catch (Exception e) {
             log.error("请求错误:", e);
+            throw new RuntimeException(e);
         }
         return document;
     }
@@ -48,6 +49,7 @@ public class ClientUtil {
                     .post();
         } catch (Exception e) {
             log.error("请求错误:", e);
+            throw new RuntimeException(e);
         }
         return document;
     }
