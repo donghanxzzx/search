@@ -1,5 +1,6 @@
 package com.dhxz.search.service;
 
+import com.dhxz.search.config.SyncProperties;
 import com.dhxz.search.domain.*;
 import com.dhxz.search.predicate.Predicates;
 import com.dhxz.search.repository.*;
@@ -22,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -42,7 +42,7 @@ import static java.util.stream.Collectors.toList;
 @Service
 public class SearchService {
 
-    private ContentRepository contentRepository;
+    private SyncProperties syncProperties;
     private ChapterRepository chapterRepository;
     private BookInfoRepository bookInfoRepository;
     private PageRepository pageRepository;
@@ -50,17 +50,19 @@ public class SearchService {
     private ThreadPoolTaskExecutor commonTaskExecutor;
     private ThreadPoolTaskExecutor contentTaskExecutor;
     private ClientUtil clientUtil;
-    private final String next = "-->>";
     private final String base = "http://m.55lewen.com";
     private final String full = base + "/full/";
     private final String top = base + "/top.html";
-    private final String topAllVisit = base + "/top-allvisit";
-    private final Integer allVisitMaxPage = 1;
 
 
-    public SearchService(ContentRepository contentRepository, ChapterRepository chapterRepository,
-                         BookInfoRepository bookInfoRepository, PageRepository pageRepository, LineRepository lineRepository, ThreadPoolTaskExecutor commonTaskExecutor, ThreadPoolTaskExecutor contentTaskExecutor, ClientUtil clientUtil) {
-        this.contentRepository = contentRepository;
+    public SearchService(SyncProperties syncProperties, ChapterRepository chapterRepository,
+                         BookInfoRepository bookInfoRepository,
+                         PageRepository pageRepository,
+                         LineRepository lineRepository,
+                         ThreadPoolTaskExecutor commonTaskExecutor,
+                         ThreadPoolTaskExecutor contentTaskExecutor,
+                         ClientUtil clientUtil) {
+        this.syncProperties = syncProperties;
         this.chapterRepository = chapterRepository;
         this.bookInfoRepository = bookInfoRepository;
         this.pageRepository = pageRepository;
@@ -98,8 +100,9 @@ public class SearchService {
 
     public void initAllVisitBookInfo() {
         List<BookInfoVo> infoVos = new ArrayList<>();
-        for (int i = 1; i <= allVisitMaxPage; i++) {
-            String url = topAllVisit + "-" + i + "/";
+        for (int i = 1; i <= syncProperties.getSyncPage(); i++) {
+            String topUrl = base + "/top-allvisit";
+            String url = topUrl + "-" + i + "/";
             BookInfoVo vo = new BookInfoVo();
             vo.setInfoUrl(url);
             vo.setBookOrder(i);
@@ -339,6 +342,7 @@ public class SearchService {
         Elements select = page.select("#nr1");
         for (Element doc : select) {
             String text = doc.text();
+            String next = "-->>";
             if (text.contains(next)) {
                 context.append(text, 0, text.indexOf(next));
             } else {

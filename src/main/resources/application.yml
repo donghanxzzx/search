@@ -1,6 +1,6 @@
 spring:
   profiles:
-    active: dev
+    active: default
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/books
     password: 123456
@@ -24,10 +24,10 @@ logging:
 server:
   port: 8889
 
----
-spring:
-  profiles: dev
-  datasource:
-    url: jdbc:mysql://34.85.73.209:3308/books
-  jpa:
-    show-sql: false
+thread-pool:
+  common-core-pool-size: 24
+  common-max-pool-size: 32
+  content-core-pool-size: 24
+  content-max-pool-size: 32
+sync:
+  syncPage: 1
