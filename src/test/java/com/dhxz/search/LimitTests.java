@@ -30,4 +30,17 @@ public class LimitTests {
                 });
 
     }
+
+    @Test
+    public void testS() {
+        String target = "  &lt;b&gt;男生&lt;/b&gt; 第二章 撞破南墙不回头(第1/3页) ";
+        String t2 = "cdgsddf";
+        int start = target.indexOf("(");
+        int end = target.indexOf(")");
+        System.out.println(end);
+        if (start != -1 && end != -1) {
+            String s = target.substring(start + 1, end);
+            System.out.println(s);
+        }
+    }
 }

@@ -2,7 +2,10 @@ package com.dhxz.search.service;
 
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
-import com.dhxz.search.repository.*;
+import com.dhxz.search.repository.BookInfoRepository;
+import com.dhxz.search.repository.ChapterRepository;
+import com.dhxz.search.repository.LineRepository;
+import com.dhxz.search.repository.PageRepository;
 import com.dhxz.search.vo.BookInfoVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -15,7 +18,6 @@ import java.util.List;
 
 import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
 import static com.dhxz.search.exception.ExceptionEnum.CHAPTER_NOT_COMPLETED;
-import static java.util.stream.Collectors.toList;
 
 /**
  * @author 10066610
@@ -69,23 +71,28 @@ public class OutputStreamService {
         try {
             String title = book.getTitle() + ".txt";
             byte[] bytes = sb.toString().getBytes();
-            BufferedOutputStream bos = writeToResponseWithoutCloseSource(response, title, bytes);
-            bos.close();
-            String separator = File.separator;
-            String path = System.getProperty("java.io.tmpdir");
-            if (!path.endsWith(separator)) {
-                path = path + separator;
-            }
-
-            path = path + title;
-            bos = new BufferedOutputStream(new FileOutputStream(new File(path)));
+            String path = getPath(title);
+            BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(new File(path)));
             bos.write(bytes);
             bos.flush();
+            bos.close();
+            bos = writeToResponseWithoutCloseSource(response, title, bytes);
             bos.close();
         } catch (IOException ex) {
             log.error("IO异常:", ex);
         }
         return response;
+    }
+
+    public static String getPath(String title) {
+        String separator = File.separator;
+        String path = System.getProperty("java.io.tmpdir");
+        if (!path.endsWith(separator)) {
+            path = path + separator;
+        }
+
+        path = path + title;
+        return path;
     }
 
     public void readFromDisk(File file, HttpServletResponse response) {

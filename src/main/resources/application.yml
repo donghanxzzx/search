@@ -15,6 +15,8 @@ spring:
         implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
         physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy
     database-platform: org.hibernate.dialect.MySQL8Dialect
+  profiles:
+    active: dev
 
 logging:
   level:
@@ -29,3 +31,9 @@ thread-pool:
   content-max-pool-size: 32
 sync:
   syncPage: 1
+---
+spring:
+  profiles:
+    active: dev
+  datasource:
+    url: jdbc:mysql://34.85.73.209:3308/books

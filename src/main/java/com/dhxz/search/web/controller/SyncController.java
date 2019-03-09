@@ -18,6 +18,7 @@ import java.util.List;
 
 import static com.dhxz.search.exception.ExceptionEnum.BOOK_NOT_FOUND;
 import static com.dhxz.search.predicate.Predicates.hasNotCompletedBookInfo;
+import static com.dhxz.search.service.OutputStreamService.getPath;
 import static java.util.stream.Collectors.toList;
 
 @RestController
@@ -77,8 +78,9 @@ public class SyncController {
                                            HttpServletRequest request,
                                            HttpServletResponse response) {
         BookInfo book = bookInfoRepository.findById(bookId).orElseThrow(BOOK_NOT_FOUND);
-        String path = System.getProperty("java.io.tmpdir");
-        File file = new File(path + book.getTitle() + ".txt");
+        String title = book.getTitle() + ".txt";
+        String path = getPath(title);
+        File file = new File(path);
         if (file.exists()) {
             outputStreamService.readFromDisk(file, response);
         } else {

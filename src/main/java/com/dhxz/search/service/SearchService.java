@@ -1,9 +1,15 @@
 package com.dhxz.search.service;
 
 import com.dhxz.search.config.SyncProperties;
-import com.dhxz.search.domain.*;
+import com.dhxz.search.domain.BookInfo;
+import com.dhxz.search.domain.Chapter;
+import com.dhxz.search.domain.Line;
+import com.dhxz.search.domain.Page;
 import com.dhxz.search.predicate.Predicates;
-import com.dhxz.search.repository.*;
+import com.dhxz.search.repository.BookInfoRepository;
+import com.dhxz.search.repository.ChapterRepository;
+import com.dhxz.search.repository.LineRepository;
+import com.dhxz.search.repository.PageRepository;
 import com.dhxz.search.vo.BookInfoVo;
 import com.dhxz.search.vo.ThreadStatusVo;
 import com.dhxz.search.web.utils.ClientUtil;
@@ -179,7 +185,7 @@ public class SearchService {
      */
     public void loadContextWithPageLine(Chapter chapter) {
 
-        contentTaskExecutor.execute(()->{
+        contentTaskExecutor.execute(() -> {
             String uri = chapter.getUri();
             Chapter chapterInDb = chapterRepository.findById(chapter.getId()).orElseThrow(CHAPTER_NOT_FOUND);
             log.info("chapterUri:{}", uri);
@@ -233,13 +239,25 @@ public class SearchService {
 
     private int handlePageSize(Document firstPage) {
         Elements titleEls = firstPage.select("#nr_title");
+        log.info("titleElements:{}", titleEls);
         if (!CollectionUtils.isEmpty(titleEls)) {
             String title = titleEls.get(0).text();
-            String[] split = title.split("/");
-            String s = split[1];
-            int idP = s.indexOf("页");
-            String pageSizeStr = s.substring(0, idP);
-            return Integer.valueOf(pageSizeStr);
+            int start = title.indexOf("(");
+            int end = title.indexOf(")");
+
+            title = title.substring(start + 1, end);
+            if (title.contains("页")) {
+                String[] split = title.split("/");
+                if (split.length > 1) {
+                    String s = split[1];
+                    int idP = s.indexOf("页");
+                    if (idP != -1) {
+                        String pageSizeStr = s.substring(0, idP);
+                        return Integer.valueOf(pageSizeStr);
+                    }
+                }
+            }
+
         }
         return 0;
     }
