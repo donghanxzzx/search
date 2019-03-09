@@ -109,6 +109,74 @@ public class OutputStreamService {
         }
     }
 
+    public void readHtmlFromDisk(File file, HttpServletResponse response) {
+        try (
+                BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file));
+        ) {
+            byte[] buffer = new byte[bis.available()];
+            int read = bis.read(buffer);
+            writeHtml(response, buffer);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void readHtml(BookInfoVo bookInfoVo, HttpServletResponse response) {
+        BookInfo book = bookInfoRepository.findById(bookInfoVo.getId())
+                .orElseThrow(BOOK_NOT_FOUND);
+        if (chapterRepository.existsByBookInfoAndCompleted(book, false)) {
+            throw CHAPTER_NOT_COMPLETED.get();
+        }
+        List<Chapter> chapters = chapterRepository
+                .findByBookInfoIdOrderByChapterOrderAsc(book.getId());
+
+        StringBuilder sb = new StringBuilder();
+
+        // 头
+        sb.append("<!DOCTYPE html><html lang=\"zh\"><head><meta charset=\"UTF-8\"><title>")
+                .append(book.getTitle()).append("</title></head><body><br><br><div style=\"font-size: larger\"><br><div>");
+
+        chapters.stream()
+                .map(chapter -> pageRepository.findByChapterIdOrderByPageOrderAsc(chapter.getId()))
+                .map(pages -> pages.stream().map(page -> lineRepository.findByPageIdOrderByLineOrderAsc(page.getId()))
+                        .map(lines -> lines.stream().peek(line -> {
+                            sb.append("&nbsp;&nbsp;&nbsp;&nbsp;").append(line.getContent())
+                                    .append("<br/><br/>");
+                        }).count()).count()
+                ).count();
+
+        sb.append("</div></div></body></html>");
+
+        // 写入文件缓存
+
+        String title = book.getTitle() + ".html";
+        String path = getPath(title);
+
+        try {
+            byte[] buf = sb.toString().getBytes();
+            BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(new File(path)));
+            bos.write(buf);
+            bos.flush();
+            bos.close();
+            writeHtml(response, buf);
+        } catch (IOException e) {
+            log.warn("io异常", e);
+        }
+    }
+
+    private void writeHtml(HttpServletResponse response, byte[] bytes) throws IOException {
+        response.reset();
+        response.resetBuffer();
+        response.addHeader(HttpHeaders.CONTENT_TYPE, "text/html");
+        response.addHeader(HttpHeaders.CONTENT_LENGTH, "" + bytes.length);
+        response.setContentType("text/html");
+        BufferedOutputStream bos = new BufferedOutputStream(response.getOutputStream());
+        bos.write(bytes);
+        bos.flush();
+        bos.close();
+    }
+
     private BufferedOutputStream writeToResponseWithoutCloseSource(HttpServletResponse response, String title, byte[] bytes) throws IOException {
         response.reset();
         response.resetBuffer();

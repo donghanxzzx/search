@@ -89,6 +89,20 @@ public class SyncController {
         return ResponseEntity.ok(SUCCESS);
     }
 
+    @GetMapping("/read/{bookId}")
+    public ResponseEntity<String> read(@PathVariable("bookId") Long bookId, HttpServletResponse response) {
+        BookInfo book = bookInfoRepository.findById(bookId).orElseThrow(BOOK_NOT_FOUND);
+        String title = book.getTitle() + ".html";
+        String path = getPath(title);
+        File file = new File(path);
+        if (file.exists()) {
+            outputStreamService.readHtmlFromDisk(file, response);
+        } else {
+            outputStreamService.readHtml(BookInfoVo.toVo(book), response);
+        }
+        return ResponseEntity.ok(SUCCESS);
+    }
+
     private List<BookInfo> pageAll() {
         return bookInfoRepository.findAllByOrderByBookOrderAsc();
     }
