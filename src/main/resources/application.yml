@@ -1,6 +1,4 @@
 spring:
-  profiles:
-    active: default
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/books
     password: 123456
@@ -10,9 +8,9 @@ spring:
       maximum-pool-size: 64
   jpa:
     database: mysql
-    show-sql: true
+    show-sql: false
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
       naming:
         implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
         physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy
@@ -24,10 +22,10 @@ logging:
 server:
   port: 8889
 
----
-spring:
-  profiles: dev
-  datasource:
-    url: jdbc:mysql://34.85.73.209:3308/books
-  jpa:
-    show-sql: true
+thread-pool:
+  common-core-pool-size: 24
+  common-max-pool-size: 32
+  content-core-pool-size: 24
+  content-max-pool-size: 32
+sync:
+  syncPage: 1

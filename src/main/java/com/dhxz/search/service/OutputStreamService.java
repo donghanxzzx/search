@@ -2,9 +2,7 @@ package com.dhxz.search.service;
 
 import com.dhxz.search.domain.BookInfo;
 import com.dhxz.search.domain.Chapter;
-import com.dhxz.search.repository.BookInfoRepository;
-import com.dhxz.search.repository.ChapterRepository;
-import com.dhxz.search.repository.ContentRepository;
+import com.dhxz.search.repository.*;
 import com.dhxz.search.vo.BookInfoVo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -30,14 +28,15 @@ public class OutputStreamService {
 
     private BookInfoRepository bookInfoRepository;
     private ChapterRepository chapterRepository;
-    private ContentRepository contentRepository;
+    private PageRepository pageRepository;
+    private LineRepository lineRepository;
 
     public OutputStreamService(BookInfoRepository bookInfoRepository,
-                               ChapterRepository chapterRepository,
-                               ContentRepository contentRepository) {
+                               ChapterRepository chapterRepository, PageRepository pageRepository, LineRepository lineRepository) {
         this.bookInfoRepository = bookInfoRepository;
         this.chapterRepository = chapterRepository;
-        this.contentRepository = contentRepository;
+        this.pageRepository = pageRepository;
+        this.lineRepository = lineRepository;
     }
 
     /**
@@ -57,14 +56,16 @@ public class OutputStreamService {
                 .findByBookInfoIdOrderByChapterOrderAsc(book.getId());
         StringBuilder sb = new StringBuilder();
         sb.append("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">");
-        List<Long> contentIds = chapters.stream().map(item -> item.getContent().getId()).collect(toList());
-        long count = contentRepository.findAllById(contentIds)
-                .stream()
-                .map(item -> sb
-                        .append("\t")
-                        .append(item.getContent().replaceAll("。", "。\r\n"))
-                        .append("\r\n"))
-                .count();
+
+        chapters.stream()
+                .map(chapter -> pageRepository.findByChapterIdOrderByPageOrderAsc(chapter.getId()))
+                .map(pages -> pages.stream().map(page -> lineRepository.findByPageIdOrderByLineOrderAsc(page.getId()))
+                        .map(lines -> lines.stream().peek(line -> {
+                            sb.append(line.getContent())
+                                    .append("\r\n");
+                        }).count()).count()
+                ).count();
+
         try {
             String title = book.getTitle() + ".txt";
             byte[] bytes = sb.toString().getBytes();
@@ -87,10 +88,9 @@ public class OutputStreamService {
         return response;
     }
 
-    public void readFromDisk(BookInfoVo vo, File file, HttpServletResponse response) {
+    public void readFromDisk(File file, HttpServletResponse response) {
         try (
                 BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file));
-                BufferedOutputStream bos = new BufferedOutputStream(response.getOutputStream());
         ) {
             String title = file.getName();
             byte[] buffer = new byte[bis.available()];
@@ -113,6 +113,7 @@ public class OutputStreamService {
         response.setContentType("application/octet-stream");
         bos.write(bytes);
         bos.flush();
+        bos.close();
         return bos;
     }
 }

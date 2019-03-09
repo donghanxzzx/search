@@ -38,7 +38,7 @@ public class SyncController {
 
     @GetMapping("/readBookInfo")
     public ResponseEntity<ThreadStatusVo> readBookInfo() {
-        ThreadStatusVo vo = searchService.checkThread();
+        ThreadStatusVo vo = searchService.checkCommendThread();
         if (vo.getActiveCount() == 0) {
             searchService.initAllVisitBookInfo();
             vo.setCommitStatus(true);
@@ -48,7 +48,7 @@ public class SyncController {
 
     @GetMapping("/readChapter")
     public ResponseEntity<ThreadStatusVo> readChapter() {
-        ThreadStatusVo vo = searchService.checkThread();
+        ThreadStatusVo vo = searchService.checkCommendThread();
         if (vo.getActiveCount() == 0) {
             page().stream().map(BookInfoVo::toVo).forEach(searchService::readChapter);
             vo.setCommitStatus(true);
@@ -58,7 +58,7 @@ public class SyncController {
 
     @GetMapping("/readContent")
     public ResponseEntity<ThreadStatusVo> readContent() {
-        ThreadStatusVo vo = searchService.checkThread();
+        ThreadStatusVo vo = searchService.checkContentThread();
         if (vo.getActiveCount() == 0) {
             pageAll().stream().map(BookInfoVo::toVo).forEach(searchService::readContent);
             vo.setCommitStatus(true);
@@ -72,12 +72,6 @@ public class SyncController {
                 .collect(toList());
     }
 
-    public void sync() {
-        searchService.initAllVisitBookInfo();
-        page().stream().map(BookInfoVo::toVo).forEach(searchService::readChapter);
-        pageAll().stream().map(BookInfoVo::toVo).forEach(searchService::readContent);
-    }
-
     @GetMapping("/download/{bookId}")
     public ResponseEntity<String> download(@PathVariable("bookId") Long bookId,
                                            HttpServletRequest request,
@@ -86,7 +80,7 @@ public class SyncController {
         String path = System.getProperty("java.io.tmpdir");
         File file = new File(path + book.getTitle() + ".txt");
         if (file.exists()) {
-            outputStreamService.readFromDisk(BookInfoVo.toVo(book), file, response);
+            outputStreamService.readFromDisk(file, response);
         } else {
             outputStreamService.downloadBook(BookInfoVo.toVo(book), response);
         }
